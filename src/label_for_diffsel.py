@@ -38,18 +38,18 @@ if __name__ == "__main__":
         label2 = False
         for n in curroot.iternodes(order="preorder"):
             if n.label == "#1":
+                n.label = ":1"
                 if not label1:
                     label1 = True
-                    n.label = ":1"
                     for c in n.children:
                         if c.istip:
                             c.label += ":1"
                         else:
                             c.label = ":1"
             elif n.label == "#2":
+                n.label = ":2"
                 if not label2:
                     label2 = True
-                    n.label = ":2"
                     for c in n.children:
                         if c.istip:
                             c.label += ":2"
@@ -61,8 +61,8 @@ if __name__ == "__main__":
                 else:
                     n.label = ":0"
         if not label2:
-            sys.stderr.write("expected both #1 and #2 in tree, but only \
-                             #1 found")
+            sys.stderr.write("expected both #1 and #2 in tree, but only ")
+            sys.stderr.write("#1 found\n")
             sys.exit()
 
     print(curroot.get_newick_repr())
