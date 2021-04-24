@@ -1,6 +1,7 @@
 #! /usr/bin/python3
 
 import sys
+import re
 import argparse
 import tree_reader
 
@@ -33,36 +34,70 @@ if __name__ == "__main__":
         if "#" not in n.label:
             n.label = ""
 
+    # need to do lengths for diffsel, stupidly
+    visited = []
     if args.nCond == 3:
         label1 = False
         label2 = False
-        for n in curroot.iternodes(order="preorder"):
+        for n in curroot.iternodes(order="preorder"):  # start at root
+            if n.istip:
+                if n.label.endswith("#1"):
+                    n.length = 1.0
+                    n.label = n.label[:-2]
+                    visited.append(n)
+                elif n.label.endswith("#2"):
+                    n.length = 2.0
+                    n.label = n.label[:-2]
+                    visited.append(n)
             if n.label == "#1":
-                n.label = ":1"
-                if not label1:
-                    label1 = True
-                    for c in n.children:
-                        if c.istip:
-                            c.label += ":1"
-                        else:
-                            c.label = ":1"
+                label1 = True
+                n.label = ""
+                n.length = 1.0
+                visited.append(n)
+                for c in n.iternodes(order="preorder"):
+                    c.length = 1.0
+                    visited.append(c)
             elif n.label == "#2":
-                n.label = ":2"
-                if not label2:
-                    label2 = True
-                    for c in n.children:
-                        if c.istip:
-                            c.label += ":2"
-                        else:
-                            c.label = ":2"
+                n.label = ""
+                label2 = True
+                visited.append(n)
+                for c in n.iternodes(order="preorder"):
+                    c.length = 2.0
+                    visited.append(c)
             else:
-                if n.istip:
-                    n.label += ":0"
-                else:
-                    n.label = ":0"
+                if n not in visited:
+                    n.length = 0.0
         if not label2:
-            sys.stderr.write("expected both #1 and #2 in tree, but only ")
-            sys.stderr.write("#1 found\n")
-            sys.exit()
+            sys.stderr.write("expected a class 2 label \
+                             but only 1 found. Check input.\n")
+    else:
+        label1 = False
+        for n in curroot.iternodes(order="preorder"):  # start at root
+            if n.istip:
+                if n.label.endswith("#1"):
+                    n.label = n.label[:-2]
+                    n.length = 1.0
+                    visited.append(n)
+            if n.label == "#1":
+                label1 = True
+                n.label = ""
+                n.length = 1.0
+                visited.append(n)
+                for c in n.iternodes(order="preorder"):
+                    c.length = 1.0
+                    visited.append(c)
+            else:
+                if n not in visited:
+                    n.length = 0.0
 
-    print(curroot.get_newick_repr())
+    newNwkString = curroot.get_newick_repr(showbl=True)
+    # now we need to strip the branch lengths to integers
+    p = re.compile(":[0-9].[0-9]*")
+
+    def repl(m):
+        n = m.group(0).split(".")[0]
+        return n
+
+    newNwkString = p.sub(repl, newNwkString)
+
+    print(newNwkString+";")
