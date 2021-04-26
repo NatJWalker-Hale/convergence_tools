@@ -30,12 +30,12 @@ if __name__ == "__main__":
                 newLab = args.cond1 + "_" + leaf.label
                 newSeqDict[newLab] = seqDict[leaf.label]
                 leaf.label = newLab
-        elif n.istip:
-            if n.label.endswith("#1"):
+        if n.istip:
+            if "#1" in n.label:
                 newLab = args.cond1 + "_" + n.label[:-2]
                 newSeqDict[newLab] = seqDict[n.label[:-2]]
                 n.label = newLab
-            if n.label not in [x[3:] for x in newSeqDict.keys()]:
+            elif n.label not in newSeqDict.keys():
                 newLab = args.cond0 + "_" + n.label
                 newSeqDict[newLab] = seqDict[n.label]
                 n.label = newLab
@@ -48,4 +48,4 @@ if __name__ == "__main__":
                      str(len(list(newSeqDict.values())[0])) + "\n")
         for k, v in newSeqDict.items():
             outAln.write(k + "\t" + v + "\n")
-    
+  
