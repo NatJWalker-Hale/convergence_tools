@@ -86,6 +86,8 @@ if __name__ == "__main__":
                 for c in n.iternodes(order="preorder"):
                     c.length = 1.0
                     visited.append(c)
+            if n.label == "#2":  # in case formatted for both
+                n.label = ""
             else:
                 if n not in visited:
                     n.length = 0.0
