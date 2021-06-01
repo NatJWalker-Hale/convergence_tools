@@ -9,6 +9,7 @@ class Node:
         self.istip = False
         self.height = 0
         self.note = ""
+        self.number = 0  # this is my mod of Stephen's
     
     def add_child(self,child):
         #make sure that the child is not already in there
