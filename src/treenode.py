@@ -72,7 +72,7 @@ class Node:
             ret += self.label
         return ret
 
-    def get_newick_repr(self,showbl=False):
+    def get_newick_repr(self, showbl=False, shownum=False):
         ret = ""
         for i in range(len(self.children)):
             if i == 0:
@@ -85,6 +85,8 @@ class Node:
         if self.label != None:
             ret += self.label
             #ret += str(self.label)
+        if self.shownum == True:
+            ret += str(self.number)
         if self.note != "":
             ret += "["+self.note+"]"
         if showbl == True:
@@ -113,4 +115,4 @@ class Node:
         return ret
 
     def __repr__(self):
-        return self.get_newick_repr(False)
+        return self.get_newick_repr(False, False)
