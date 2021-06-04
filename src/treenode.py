@@ -47,7 +47,16 @@ class Node:
                 yield d
         if order.lower() == "postorder":
             yield self
-    
+
+    def number_tree(self):
+        c = 0
+        for n in self.iternodes(order="postorder"):
+            if n.parent is None:
+                continue
+            else:
+                n.number = c
+                c += 1
+
     def prune(self):
         p = self.parent
         if p != None:
@@ -77,7 +86,7 @@ class Node:
         for i in range(len(self.children)):
             if i == 0:
                 ret += "("
-            ret += self.children[i].get_newick_repr(showbl)
+            ret += self.children[i].get_newick_repr(showbl, shownum)
             if i == len(self.children)-1:
                 ret += ")"
             else:
@@ -85,8 +94,11 @@ class Node:
         if self.label != None:
             ret += self.label
             #ret += str(self.label)
-        if self.shownum == True:
-            ret += str(self.number)
+        if shownum == True:
+            if self.istip:
+                ret += "_" + str(self.number)
+            else:
+                ret += str(self.number)
         if self.note != "":
             ret += "["+self.note+"]"
         if showbl == True:
