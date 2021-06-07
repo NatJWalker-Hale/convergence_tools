@@ -48,6 +48,12 @@ class Node:
         if order.lower() == "postorder":
             yield self
 
+    def is_rooted(self):
+        if len(self.children) == 2:
+            return True
+        elif len(self.children) == 3:
+            return False
+
     def number_tree(self):
         c = 0
         for n in self.iternodes(order="postorder"):

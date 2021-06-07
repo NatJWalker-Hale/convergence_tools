@@ -105,4 +105,6 @@ def read_tree_file_iter(inf):
 
 if __name__ == "__main__":
     for s in read_tree_file_iter(sys.argv[1]):
-        print((s.get_newick_repr(True)+";"))
+        s.number_tree()
+        print(s.is_rooted())
+        #print((s.get_newick_repr(True, True)+";"))
