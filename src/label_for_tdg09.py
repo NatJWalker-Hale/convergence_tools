@@ -1,11 +1,21 @@
 #! /usr/bin/python3
 
 import re
+from sre_constants import CATEGORY
 import sys
 import argparse
 import tree_reader
 from copy import deepcopy
 from parse_fasta import parse_fasta
+
+
+def get_group(label):
+    if "_" in label:
+        p = re.compile("^.*?_")
+        group = p.search(label).group(0)[:-1]
+        return group
+    else:
+        return label
 
 
 if __name__ == "__main__":
@@ -39,21 +49,30 @@ if __name__ == "__main__":
             if n.istip:
                 n.label = n.label.replace("_" + str(n.number),
                                           "", 1)
-                n.label += "_" + args.cond1
+                newLab = args.cond1 + "_" + n.label
+                newSeqDict[newLab] = seqDict[n.label]
+                n.label = newLab
             else:
                 n.label = args.cond1
         else:
             if n.istip:
                 n.label = n.label.replace("_" + str(n.number),
                                           "", 1)
-                n.label += "_" + args.cond0
+                newLab = args.cond0 + "_" + n.label
+                newSeqDict[newLab] = seqDict[n.label]
+                n.label = newLab
             else:
                 n.label = args.cond0
+
     for n in curroot.iternodes(order="preorder"):
+        # print(n.label)
         for c in n.children:
-            if n.label[:-2] != c.label[:-2]:
-                n.label += "_" + "GS"
-             
+            # print(c.label)
+            nGroup = get_group(n.label)
+            cGroup = get_group(c.label)
+            if nGroup != cGroup:
+                n.label = re.sub(nGroup, nGroup + "_GS", n.label)
+
     # for n in curroot.iternodes(order="preorder"):
     #     if n.label == "#1":  # only two conditions allowed
     #         n.label = ""  # strip label
@@ -72,7 +91,7 @@ if __name__ == "__main__":
     #             n.label = newLab
 
     with open("tdg09_tree.nwk", "w") as outTree:
-        outTree.write(curroot.get_newick_repr(True)+";\n")
+        outTree.write(curroot.get_newick_repr(showbl=True)+";\n")
 
     with open("tdg09_aln.phy", "w") as outAln:
         outAln.write(str(len(newSeqDict.keys())) + " " +

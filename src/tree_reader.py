@@ -1,14 +1,15 @@
 import string
 import sys
 from treenode import Node
-#from cnode import Node
+# from cnode import Node
 
-"""
-this takes a newick string as instr
-and reads the string and makes the 
-nodes and returns the root node
-"""
+
 def read_tree_string(instr):
+    """
+    this takes a newick string as instr
+    and reads the string and makes the 
+    nodes and returns the root node
+    """
     root = None
     index = 0
     nextchar = instr[index]
@@ -95,8 +96,9 @@ def read_tree_string(instr):
         nextchar = instr[index]
     return root
 
+
 def read_tree_file_iter(inf):
-    info = open(inf,"r")
+    info = open(inf, "r")
     for i in info:
         if len(i) > 2:
             yield read_tree_string(i.strip())
