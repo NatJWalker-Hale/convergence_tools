@@ -1,0 +1,25 @@
+pxbdsim -e 25
+pxbdsim -e 25 -l 1.0
+pxbdsim -h
+pxbdsim -e 25
+pxtscale
+pxtscale -h
+pxbdsim -e 25
+pxtscale -r 1.0
+pxtscale -r 1.0
+pxbdsim -e 25
+pxlstr
+pxlstr
+pxlstr
+pxrr -u -t ../test/test.nwk -o ../test/test.nwk.ur
+pxlstr
+pxlstr
+pxlstr
+pxlstr
+pxlstr
+pxlstr
+pxrr -t -u
+pxlstr
+pxrr -u
+pxlstr
+pxlstr

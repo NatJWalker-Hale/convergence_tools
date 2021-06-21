@@ -1,4 +1,6 @@
 class Node:
+    """Originally courtesy of Stephen Smith, some methods
+    are by me - number_tree, unroot, is_rooted, etc."""
     def __init__(self):
         self.label = ""
         self.length = 0.0
@@ -10,7 +12,7 @@ class Node:
         self.height = 0
         self.note = ""
         self.number = 0  # this is my mod of Stephen's
-    
+
     def add_child(self,child):
         #make sure that the child is not already in there
         assert child not in self.children
@@ -54,6 +56,20 @@ class Node:
         elif len(self.children) == 3:
             return False
 
+    def unroot(self):
+        if self.is_rooted:
+            children = [c for c in self.children if not c.istip]
+            toDel = children[0]
+            brlen = toDel.length
+            toDelChildren = toDel.children
+            self.length += brlen
+            toDel.prune()
+            for c in toDelChildren:
+                self.add_child(c)
+            return self
+        else:
+            return self
+
     def number_tree(self):
         c = 0
         for n in self.iternodes(order="postorder"):
@@ -68,7 +84,7 @@ class Node:
         if p != None:
             p.remove_child(self)
         return p
-    
+
     def get_newick_repr_paint(self):
         ret = ""
         painted_children = []

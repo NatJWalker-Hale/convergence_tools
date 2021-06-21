@@ -1,11 +1,9 @@
 #! /usr/bin/python3
 
 import re
-from sre_constants import CATEGORY
 import sys
 import argparse
 import tree_reader
-from copy import deepcopy
 from parse_fasta import parse_fasta
 
 
@@ -16,6 +14,47 @@ def get_group(label):
         return group
     else:
         return label
+
+
+def label_for_tdg09(root, seqDict, scenario, cond0, cond1):
+    newSeqDict = {}
+    for n in root.iternodes(order="preorder"):
+        if n.number in scenario:
+            if n.istip:
+                n.label = n.label.replace("_" + str(n.number),
+                                          "", 1)
+                newLab = cond1 + "_" + n.label
+                newSeqDict[newLab] = seqDict[n.label]
+                n.label = newLab
+            else:
+                n.label = cond1
+        else:
+            if n.istip:
+                n.label = n.label.replace("_" + str(n.number),
+                                          "", 1)
+                newLab = cond0 + "_" + n.label
+                newSeqDict[newLab] = seqDict[n.label]
+                n.label = newLab
+            else:
+                n.label = cond0
+
+    for n in root.iternodes(order="preorder"):
+        # print(n.label)
+        for c in n.children:
+            # print(c.label)
+            nGroup = get_group(n.label)
+            cGroup = get_group(c.label)
+            if nGroup != cGroup:
+                n.label = re.sub(nGroup, nGroup + "_GS", n.label)
+
+    with open("tdg09_tree.nwk", "w") as outTree:
+        outTree.write(root.get_newick_repr(showbl=True)+";\n")
+
+    with open("tdg09_aln.phy", "w") as outAln:
+        outAln.write(str(len(newSeqDict.keys())) + " " +
+                     str(len(list(newSeqDict.values())[0])) + "\n")
+        for k, v in newSeqDict.items():
+            outAln.write(k + "\t" + v + "\n")
 
 
 if __name__ == "__main__":
@@ -33,9 +72,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     curroot = [x for x in tree_reader.read_tree_file_iter(args.tree)][0]
-    seqDict = dict([x for x in parse_fasta(args.alignment)])
-    newSeqDict = {}
     curroot.number_tree()
+    seqs = dict([x for x in parse_fasta(args.alignment)])
 
     scenario = []
     with open(args.scenario, "r") as inf:
@@ -44,58 +82,4 @@ if __name__ == "__main__":
                 scenario += [int(x) for x in i.split(",")]
     # print(scenario)
 
-    for n in curroot.iternodes(order="preorder"):
-        if n.number in scenario:
-            if n.istip:
-                n.label = n.label.replace("_" + str(n.number),
-                                          "", 1)
-                newLab = args.cond1 + "_" + n.label
-                newSeqDict[newLab] = seqDict[n.label]
-                n.label = newLab
-            else:
-                n.label = args.cond1
-        else:
-            if n.istip:
-                n.label = n.label.replace("_" + str(n.number),
-                                          "", 1)
-                newLab = args.cond0 + "_" + n.label
-                newSeqDict[newLab] = seqDict[n.label]
-                n.label = newLab
-            else:
-                n.label = args.cond0
-
-    for n in curroot.iternodes(order="preorder"):
-        # print(n.label)
-        for c in n.children:
-            # print(c.label)
-            nGroup = get_group(n.label)
-            cGroup = get_group(c.label)
-            if nGroup != cGroup:
-                n.label = re.sub(nGroup, nGroup + "_GS", n.label)
-
-    # for n in curroot.iternodes(order="preorder"):
-    #     if n.label == "#1":  # only two conditions allowed
-    #         n.label = ""  # strip label
-    #         for leaf in n.leaves_fancy():
-    #             newLab = args.cond1 + "_" + leaf.label
-    #             newSeqDict[newLab] = seqDict[leaf.label]
-    #             leaf.label = newLab
-    #     if n.istip:
-    #         if "#1" in n.label:
-    #             newLab = args.cond1 + "_" + n.label[:-2]
-    #             newSeqDict[newLab] = seqDict[n.label[:-2]]
-    #             n.label = newLab
-    #         elif n.label not in newSeqDict.keys():
-    #             newLab = args.cond0 + "_" + n.label
-    #             newSeqDict[newLab] = seqDict[n.label]
-    #             n.label = newLab
-
-    with open("tdg09_tree.nwk", "w") as outTree:
-        outTree.write(curroot.get_newick_repr(showbl=True)+";\n")
-
-    with open("tdg09_aln.phy", "w") as outAln:
-        outAln.write(str(len(newSeqDict.keys())) + " " +
-                     str(len(list(newSeqDict.values())[0])) + "\n")
-        for k, v in newSeqDict.items():
-            outAln.write(k + "\t" + v + "\n")
-  
+    label_for_tdg09(curroot, seqs, scenario, args.cond0, args.cond1)
