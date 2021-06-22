@@ -61,8 +61,8 @@ class Node:
             children = [c for c in self.children if not c.istip]
             toDel = children[0]
             brlen = toDel.length
+            children[1].length += brlen
             toDelChildren = toDel.children
-            self.length += brlen
             toDel.prune()
             for c in toDelChildren:
                 self.add_child(c)
