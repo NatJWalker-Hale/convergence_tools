@@ -58,7 +58,8 @@ class Node:
 
     def unroot(self):
         if self.is_rooted:
-            children = [c for c in self.children if not c.istip]
+            children = sorted(self.children,
+                              key=lambda x: x.length, reverse=True)
             toDel = children[0]
             brlen = toDel.length
             children[1].length += brlen

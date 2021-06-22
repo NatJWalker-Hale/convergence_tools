@@ -11,28 +11,28 @@ def repl(m):
     return n
 
 
-def label_for_diffsel(root, scenarioDict, nCond):
-    for n in curroot.iternodes(order="preorder"):
+def label_for_diffsel(root, scenarioDict, nCond, outPath="diffsel_tree.nwk"):
+    for n in root.iternodes(order="preorder"):
         if nCond == 2:
-            if n.number in scenarios[1]:
+            if n.number in scenarioDict[1]:
                 n.length = 1.0
             else:
                 n.length = 0.0
         elif nCond == 3:
-            if n.number in scenarios[1]:
+            if n.number in scenarioDict[1]:
                 n.length = 1.0
-            elif n.number in scenarios[2]:
+            elif n.number in scenarioDict[2]:
                 n.length = 2.0
             else:
                 n.length = 0.0
 
-    newNwkString = curroot.get_newick_repr(showbl=True)
+    newNwkString = root.get_newick_repr(showbl=True)
     # now we need to strip the branch lengths to integers
     p = re.compile(":[0-9].[0-9]*")
 
     newNwkString = p.sub(repl, newNwkString)
 
-    with open("diffsel_tree.nwk", "w") as outTree:
+    with open(outPath, "w") as outTree:
         outTree.write(newNwkString+";\n")
 
 

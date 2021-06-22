@@ -1,21 +1,22 @@
 #! /usr/bin/python3
 
+import os
 import sys
 import argparse
 import subprocess
 import tree_reader
 from copy import deepcopy
+from parse_fasta import parse_fasta
 from label_for_diffsel import label_for_diffsel
 from label_for_tdg09 import label_for_tdg09
 from prep_for_msd import prep_for_msd
 
 
-def unroot_tree(path):
-    # relies on pxrr from phyx - v hacky, figure out
-    # how to do myself later
-    cmd = ["pxrr", "-t", path, "-u"]
-    res = subprocess.run(cmd, capture_output=True)
-    return res.stdout
+def seqDict_to_phylip(seqDict, outPath):
+    with open(outPath, "w") as outf:
+        for k, v in seqDict.items():
+            outf.write(k + "\t")
+            outf.write(v + "\n")
 
 
 def parse_scenario(path):
@@ -28,7 +29,7 @@ def parse_scenario(path):
                 for i in s.strip().split("/"):
                     scenarios[nCond] += [int(x) for x in i.split(",")]
                 nCond += 1
-    return scenarios
+    return scenarios, nCond
 
 
 if __name__ == "__main__":
@@ -51,12 +52,16 @@ if __name__ == "__main__":
                         help="space-separated detection methods to run, \
                         default all")
     parser.add_argument("-nt", "--num_threads", type=int, default=6,
-                        help="number of threads to use. Has no impact on \
-                        individual jobs, which will each run on 1 thread \
-                        but will impact how jobs are parallelised. Defaults \
-                        mean all 5 methods will be run in parallel")
+                        help="number of threads to use. Impacts how jobs \
+                        are parallelised. Defaults mean all 5 methods will \
+                        be run in parallel on 1 thread each, while nt < 6 \
+                        means jobs will be run sequentially, with nt threads \
+                        each, where possible.")
     args = parser.parse_args()
-    #print(args.methods)
+    # print(args.methods)
+
+    # aa_seqs = dict([x for x in parse_fasta(args.AA_aln)])
+    cds_seqs = dict([x for x in parse_fasta(args.CDS_aln)])
 
     with open(args.tree, "r") as inf:
         nwkString = inf.readline().strip()
@@ -66,12 +71,45 @@ if __name__ == "__main__":
 
     if curroot.is_rooted():
         # create unrooted tree for diffsel
-        curroot_unroot = deepcopy(curroot)
-        curroot_unroot.unroot()
-        curroot_unroot.number_tree()
+        if "diffsel" in args.methods:
+            curroot_unroot = deepcopy(curroot)
+            curroot_unroot.unroot()
+            curroot_unroot.number_tree()
     else:
-        sys.stdout.write("a rooted tree is required!")
+        sys.stdout.write("a rooted tree is required!\n")
         sys.exit()
 
-    print(curroot.get_newick_repr(True) + ";")
-    print(curroot_unroot.get_newick_repr(True) + ";")
+    scenarios, conds = parse_scenario(args.scenario)
+
+    cmds = {}
+    if "diffsel" in args.methods:
+        # make files
+        os.mkdir("diffsel")
+        seqDict_to_phylip(cds_seqs, "diffsel/diffsel_aln.phy")
+        label_for_diffsel(curroot_unroot, scenarios, conds,
+                          "diffsel/diffsel_tree.nwk")
+        cmd1 = ["diffsel",
+                "-d",
+                "diffsel/diffsel_aln.phy",
+                "-t",
+                "diffsel/diffsel_tree.nwk",
+                "-ncond",
+                str(conds),
+                "-x",
+                "1 3000",
+                "diffsel"+str(conds)+"cond/run1"]
+        cmd2 = ["diffsel",
+                "-d",
+                "diffsel/diffsel_aln.phy",
+                "-t",
+                "diffsel/diffsel_tree.nwk",
+                "-ncond",
+                conds,
+                "-x",
+                "1 3000",
+                "diffsel/"+str(conds)+"cond/run2"]
+    cmds["diffsel1"] = cmd1
+    cmds["diffsel2"] = cmd2
+
+    print(cmds["diffsel1"])
+    subprocess.run(cmds["diffsel1"])
