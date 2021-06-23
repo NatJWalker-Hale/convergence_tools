@@ -57,9 +57,10 @@ class Node:
             return False
 
     def unroot(self):
-        if self.is_rooted:
+        if self.is_rooted:  # guarantees two children
             children = sorted(self.children,
-                              key=lambda x: x.length, reverse=True)
+                              key=lambda x: len(x.lvsnms()), reverse=True)
+            # this ensures that tip nodes will be last
             toDel = children[0]
             brlen = toDel.length
             children[1].length += brlen
@@ -70,6 +71,8 @@ class Node:
             return self
         else:
             return self
+        # this won't work for the allowed rooted tritomy, but is fine
+        # for my purposes
 
     def number_tree(self):
         c = 0

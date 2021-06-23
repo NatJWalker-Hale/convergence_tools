@@ -1,10 +1,14 @@
 #! /usr/bin/python3
 
+from datetime import time
 import os
+from re import sub
 import sys
 import argparse
 import subprocess
+import pandas as pd
 import tree_reader
+import calc_topological
 from copy import deepcopy
 from parse_fasta import parse_fasta
 from label_for_diffsel import label_for_diffsel
@@ -14,6 +18,8 @@ from prep_for_msd import prep_for_msd
 
 def seqDict_to_phylip(seqDict, outPath):
     with open(outPath, "w") as outf:
+        outf.write(str(len(seqDict)) + "\t" +
+                   str(len(list(seqDict.values())[0])) + "\n")
         for k, v in seqDict.items():
             outf.write(k + "\t")
             outf.write(v + "\n")
@@ -21,15 +27,21 @@ def seqDict_to_phylip(seqDict, outPath):
 
 def parse_scenario(path):
     scenarios = {}
+    scenarioStr = {}
     with open(path, "r") as inf:
         nCond = 1
         for s in inf:
             if s != "\n":
                 scenarios[nCond] = []
+                scenarioStr[nCond] = s.strip()
                 for i in s.strip().split("/"):
                     scenarios[nCond] += [int(x) for x in i.split(",")]
                 nCond += 1
-    return scenarios, nCond
+    return scenarios, nCond, scenarioStr
+
+
+"""to run this script, you will first have to do source ~/.bashrc in the shell,
+in order to make sure that the CMD_PCOC_DOCKER alias has the correct paths"""
 
 
 if __name__ == "__main__":
@@ -51,6 +63,10 @@ if __name__ == "__main__":
                         "msd", "PCOC", "tdg09", "topo"],
                         help="space-separated detection methods to run, \
                         default all")
+    parser.add_argument("-c0", "--cond0", help="background condition for \
+                        tdg09. Default D2", type=str, default="D2")
+    parser.add_argument("-c1", "--cond1", help="foreground condition for \
+                        tdg09. Default D1", type=str, default="D1")
     parser.add_argument("-nt", "--num_threads", type=int, default=6,
                         help="number of threads to use. Impacts how jobs \
                         are parallelised. Defaults mean all 5 methods will \
@@ -60,7 +76,10 @@ if __name__ == "__main__":
     args = parser.parse_args()
     # print(args.methods)
 
-    # aa_seqs = dict([x for x in parse_fasta(args.AA_aln)])
+    TOP = os.getcwd()
+    print(TOP)
+
+    aa_seqs = dict([x for x in parse_fasta(args.AA_aln)])
     cds_seqs = dict([x for x in parse_fasta(args.CDS_aln)])
 
     with open(args.tree, "r") as inf:
@@ -75,41 +94,171 @@ if __name__ == "__main__":
             curroot_unroot = deepcopy(curroot)
             curroot_unroot.unroot()
             curroot_unroot.number_tree()
+            print(curroot_unroot.get_newick_repr()+";")
     else:
         sys.stdout.write("a rooted tree is required!\n")
         sys.exit()
 
-    scenarios, conds = parse_scenario(args.scenario)
+    scenarios, conds, scenStr = parse_scenario(args.scenario)
+    print(scenStr)
 
     cmds = {}
+
     if "diffsel" in args.methods:
         # make files
-        os.mkdir("diffsel")
+        try:
+            os.mkdir("diffsel")
+        except FileExistsError:
+            sys.stderr.write("A diffsel run already exists. \
+                              Delete to restart\n")
+            sys.exit()
         seqDict_to_phylip(cds_seqs, "diffsel/diffsel_aln.phy")
         label_for_diffsel(curroot_unroot, scenarios, conds,
                           "diffsel/diffsel_tree.nwk")
         cmd1 = ["diffsel",
                 "-d",
-                "diffsel/diffsel_aln.phy",
+                "diffsel_aln.phy",
                 "-t",
-                "diffsel/diffsel_tree.nwk",
+                "diffsel_tree.nwk",
                 "-ncond",
                 str(conds),
                 "-x",
                 "1 3000",
-                "diffsel"+str(conds)+"cond/run1"]
+                "run1"
+                ]
         cmd2 = ["diffsel",
                 "-d",
-                "diffsel/diffsel_aln.phy",
+                "diffsel_aln.phy",
                 "-t",
-                "diffsel/diffsel_tree.nwk",
+                "diffsel_tree.nwk",
                 "-ncond",
-                conds,
+                str(conds),
                 "-x",
                 "1 3000",
-                "diffsel/"+str(conds)+"cond/run2"]
+                "run2"
+                ]
     cmds["diffsel1"] = cmd1
     cmds["diffsel2"] = cmd2
 
-    print(cmds["diffsel1"])
-    subprocess.run(cmds["diffsel1"])
+    if "msd" in args.methods:
+        # make files
+        try:
+            os.mkdir("msd")
+        except FileExistsError:
+            sys.stderr.write("A msd run already exists. \
+                              Delete to restart\n")
+            sys.exit()
+        prep_for_msd(curroot, scenarios, "msd/msd_tree.nwk",
+                     "msd/msd_states.tsv")
+        cmd = ["msd",
+               "-o",
+               "msd/output.txt",
+               "msd/msd_tree.nwk",
+               "msd/msd_states.tsv",
+               args.AA_aln
+               ]
+        cmds["msd"] = cmd
+
+    if "PCOC" in args.methods:
+        # make files
+        try:
+            os.mkdir("PCOC")
+        except FileExistsError:
+            sys.stderr.write("A PCOC run already exists. \
+                              Delete to restart\n")
+            sys.exit()
+        dockerStr = "docker run -e LOCAL_USER_ID=`id -u $USER` --rm -v \
+                     $PWD:$PWD -e CWD=$PWD carinerey/pcoc"
+        cmd = [dockerStr,  # hard-coding a lot here
+               "pcoc_det.py",
+               "-t",
+               args.tree,
+               "-aa",
+               args.AA_aln,
+               "-m",
+               scenStr[1],
+               "-o",
+               "PCOC",
+               "--plot",
+               "--svg",
+               "-CATX_est",
+               "60",
+               "--gamma",
+               "--max_gap_allowed",
+               "10",
+               "--max_gap_allowed_in_conv_leaves",
+               "10",
+               ]
+        cmds["PCOC"] = cmd
+
+    if "topo" in args.methods:
+        if "PCOC" not in args.methods:
+            sys.stderr.write("topo must be run with PCOC!")
+            sys.exit()
+        # make files
+        try:
+            os.mkdir("topo")
+        except FileExistsError:
+            sys.stderr.write("A topo run already exists. \
+                              Delete to restart\n")
+            sys.exit()
+        # all we need to do here is prep dir, since we
+        # steal topos from PCOC
+
+    if "tdg09" in args.methods:
+        # make files
+        try:
+            os.mkdir("tdg09")
+        except FileExistsError:
+            sys.stderr.write("A tdg09 run already exists. \
+                             Delete to restart\n")
+            sys.exit()
+        label_for_tdg09(curroot, aa_seqs, scenarios,
+                        args.cond0, args.cond1,
+                        "tdg09/tdg09_tree.nwk",
+                        "tdg09/tdg09_aln.phy")
+        tdg09Str = "java -cp /home/nat/Applications/tdg09/tdg09-1.1.2/dist/tdg09.jar\
+                    tdg09.Analyse"
+        cmd = [tdg09Str,
+               "-alignment",
+               "tdg09_aln.phy",
+               "-groups",
+               args.cond0,
+               args.cond1,
+               "-tree",
+               "tdg09_tree.nwk"
+               ]
+        cmds["tdg09"] = cmd
+
+    f = open("tdg09/tdg09_out.txt", "w")
+    subprocess.Popen(" ".join(cmds["tdg09"]), shell=True,
+                     cwd=TOP + "/" + "tdg09",
+                     stderr=subprocess.DEVNULL,
+                     stdout=f)
+
+    # p = subprocess.Popen(" ".join(cmds["PCOC"]), shell=True)
+    # try:
+    #     p.wait(5)
+    # except subprocess.TimeoutExpired:
+    #     print("")
+
+    # subprocess.Popen(" ".join(cmds["diffsel1"]), shell=True,
+    #                  cwd=TOP + "/" + "diffsel", stderr=subprocess.DEVNULL,
+    #                  stdout=subprocess.DEVNULL)
+    # subprocess.Popen(" ".join(cmds["diffsel2"]), shell=True,
+    #                  cwd=TOP + "/" + "diffsel", stderr=subprocess.DEVNULL,
+    #                  stdout=subprocess.DEVNULL)
+
+    # if args.num_threads >= 6:
+    #     for k, v in cmds.items():
+    #         if k == "PCOC":
+    #             p = subprocess.Popen(" ".join(v), shell=True)
+    #             try:
+    #                 p.wait(timeout=5)
+    #             except subprocess.TimeoutExpired:
+    #                 continue
+    #         elif k.startswith("diffsel"):
+    #             subprocess.Popen(" ".join(v), shell=True,
+    #                              cwd=TOP + "/" + k[:-1])
+    #         else:
+    #             subprocess.Popen(" ".join(v), shell=True, cwd=TOP + "/" + k)

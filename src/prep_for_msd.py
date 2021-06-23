@@ -5,18 +5,21 @@ import argparse
 import tree_reader
 
 
-def prep_for_msd(root, scenario):
-    for n in curroot.iternodes(order="preorder"):
+def prep_for_msd(root, scenarioDict, outTreePath="msd_tree.nwk",
+                 outStatePath="msd_states.tsv"):
+    stateDict = {}
+
+    for n in root.iternodes(order="preorder"):
         if n.istip:
-            if n.number in scenario:
+            if n.number in scenarioDict[1]:
                 stateDict[n.label] = 1
             else:
                 stateDict[n.label] = 0
 
-    with open("msd_tree.nwk", "w") as outTree:
-        outTree.write(curroot.get_newick_repr(showbl=True)+";\n")
+    with open(outTreePath, "w") as outTree:
+        outTree.write(root.get_newick_repr(showbl=True)+";\n")
 
-    with open("msd_states.tsv", "w") as outFile:
+    with open(outStatePath, "w") as outFile:
         for k, v in stateDict.items():
             outFile.write(k + "\t" + str(v) + "\n")
 
@@ -35,10 +38,14 @@ if __name__ == "__main__":
 
     curroot.number_tree()
 
-    scenario = []
+    scenarios = {}
     with open(args.scenario, "r") as inf:
-        for line in inf:
-            for i in line.strip().split("/"):
-                scenario += [int(x) for x in i.split(",")]
+        nCond = 1
+        for s in inf:
+            if s != "\n":
+                scenarios[nCond] = []
+                for i in s.strip().split("/"):
+                    scenarios[nCond] += [int(x) for x in i.split(",")]
+                nCond += 1
 
     prep_for_msd(curroot, scenario)

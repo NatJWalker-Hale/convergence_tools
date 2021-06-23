@@ -19,9 +19,9 @@ def tp_to_dict(inf):
 def optimize_model(aln,intree,pre,model=None):
     """optimizes branch lengths and model params for the specified alignment and topology for the best-fitting aa substitution model."""
     if model is not None:
-        cmd = ["iqtree1611","-s",aln,"-m",model,"-te",intree,"-nt","1","-pre",pre,"-wsl","-redo"]
+        cmd = ["iqtree2","-s",aln,"-m",model,"-te",intree,"-nt","1","-pre",pre,"-wsl","-redo"]
     else:
-        cmd = ["iqtree1611","-s",aln,"-m","MFP","-msub","nuclear","-mrate","E,G","-te",intree,"-nt","1","-pre",pre,"-wsl","-redo"] 
+        cmd = ["iqtree2","-s",aln,"-m","MFP","-msub","nuclear","-mrate","E,G","-te",intree,"-nt","1","-pre",pre,"-wsl","-redo"] 
     p = subprocess.Popen(cmd,shell=False)
     p.wait()
     with open(pre+".iqtree","r") as mfile:

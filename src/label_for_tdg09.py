@@ -16,10 +16,12 @@ def get_group(label):
         return label
 
 
-def label_for_tdg09(root, seqDict, scenario, cond0, cond1):
+def label_for_tdg09(root, seqDict, scenarioDict, cond0, cond1,
+                    outTreePath="tdg09_tree.nwk",
+                    outAlnPath="tdg09_aln.phy"):
     newSeqDict = {}
     for n in root.iternodes(order="preorder"):
-        if n.number in scenario:
+        if n.number in scenarioDict[1]:
             if n.istip:
                 n.label = n.label.replace("_" + str(n.number),
                                           "", 1)
@@ -47,10 +49,10 @@ def label_for_tdg09(root, seqDict, scenario, cond0, cond1):
             if nGroup != cGroup:
                 n.label = re.sub(nGroup, nGroup + "_GS", n.label)
 
-    with open("tdg09_tree.nwk", "w") as outTree:
+    with open(outTreePath, "w") as outTree:
         outTree.write(root.get_newick_repr(showbl=True)+";\n")
 
-    with open("tdg09_aln.phy", "w") as outAln:
+    with open(outAlnPath, "w") as outAln:
         outAln.write(str(len(newSeqDict.keys())) + " " +
                      str(len(list(newSeqDict.values())[0])) + "\n")
         for k, v in newSeqDict.items():
@@ -75,11 +77,16 @@ if __name__ == "__main__":
     curroot.number_tree()
     seqs = dict([x for x in parse_fasta(args.alignment)])
 
-    scenario = []
+    scenarios = {}
     with open(args.scenario, "r") as inf:
-        for line in inf:
-            for i in line.strip().split("/"):
-                scenario += [int(x) for x in i.split(",")]
+        nCond = 1
+        for s in inf:
+            if s != "\n":
+                scenarios[nCond] = []
+                for i in s.strip().split("/"):
+                    scenarios[nCond] += [int(x) for x in i.split(",")]
+                nCond += 1
+
     # print(scenario)
 
-    label_for_tdg09(curroot, seqs, scenario, args.cond0, args.cond1)
+    label_for_tdg09(curroot, seqs, scenarios, args.cond0, args.cond1)
