@@ -4,6 +4,7 @@ from datetime import time
 import os
 from re import sub
 import sys
+import glob
 import argparse
 import subprocess
 import pandas as pd
@@ -74,7 +75,10 @@ if __name__ == "__main__":
                         means jobs will be run sequentially, with nt threads \
                         each, where possible.")
     args = parser.parse_args()
-    # print(args.methods)
+    print(args.methods)
+    # need to sanitise inputs at some point so that shell injections cannot
+    # occur. Could do this by writing tmp aln and tree files so I know
+    # exactly what they are
 
     TOP = os.getcwd()
     print(TOP)
@@ -137,8 +141,8 @@ if __name__ == "__main__":
                 "1 3000",
                 "run2"
                 ]
-    cmds["diffsel1"] = cmd1
-    cmds["diffsel2"] = cmd2
+        cmds["diffsel1"] = cmd1
+        cmds["diffsel2"] = cmd2
 
     if "msd" in args.methods:
         # make files
@@ -217,7 +221,8 @@ if __name__ == "__main__":
                         args.cond0, args.cond1,
                         "tdg09/tdg09_tree.nwk",
                         "tdg09/tdg09_aln.phy")
-        tdg09Str = "java -cp /home/nat/Applications/tdg09/tdg09-1.1.2/dist/tdg09.jar\
+        tdg09Str = "java -cp \
+                    /home/nat/Applications/tdg09/tdg09-1.1.2/dist/tdg09.jar \
                     tdg09.Analyse"
         cmd = [tdg09Str,
                "-alignment",
@@ -230,35 +235,67 @@ if __name__ == "__main__":
                ]
         cmds["tdg09"] = cmd
 
-    f = open("tdg09/tdg09_out.txt", "w")
-    subprocess.Popen(" ".join(cmds["tdg09"]), shell=True,
-                     cwd=TOP + "/" + "tdg09",
-                     stderr=subprocess.DEVNULL,
-                     stdout=f)
+    for m in args.methods:
+        if m == "diffsel":
+            subprocess.Popen(" ".join(cmds["diffsel1"]), shell=True,
+                             cwd=TOP + "/" + "diffsel",
+                             stderr=subprocess.DEVNULL,
+                             stdout=subprocess.DEVNULL)
+            subprocess.Popen(" ".join(cmds["diffsel2"]), shell=True,
+                             cwd=TOP + "/" + "diffsel",
+                             stderr=subprocess.DEVNULL,
+                             stdout=subprocess.DEVNULL)
+        if m == "msd":
+            subprocess.Popen(cmds["msd"], shell=False,
+                             stderr=subprocess.DEVNULL,
+                             stdout=subprocess.DEVNULL)
+        if m == "PCOC":
+            p = subprocess.Popen(" ".join(cmds["PCOC"]), shell=True)
+            try:
+                p.wait(5)
+            except subprocess.TimeoutExpired:
+                print("")
+        if m == "tdg09":
+            f = open("tdg09/tdg09_out.txt", "w")
+            subprocess.Popen(" ".join(cmds["tdg09"]), shell=True,
+                             cwd=TOP + "/" + "tdg09",
+                             stderr=subprocess.DEVNULL,
+                             stdout=f)
+        if m == "topo":
+            with open(glob.glob("PCOC/RUN_*/Trees/tree.nhx")[0], "r") as treF:
+                nwkString = treF.readline().strip()
+                non_conv_root = tree_reader.read_tree_string(nwkString)
+            for n in non_conv_root.iternodes(order="preorder"):
+                n.note = ""
+            with open("topo/tree.nwk", "w") as outTre:
+                outTre.write(non_conv_root.get_newick_repr() + ";\n")
 
-    # p = subprocess.Popen(" ".join(cmds["PCOC"]), shell=True)
-    # try:
-    #     p.wait(5)
-    # except subprocess.TimeoutExpired:
-    #     print("")
+            with open(glob.glob("PCOC/RUN_*/Trees/tree_conv.nhx")[0], "r") as treF:
+                nwkString = treF.readline().strip()
+                conv_root = tree_reader.read_tree_string(nwkString)
+            for n in conv_root.iternodes(order="preorder"):
+                n.note = ""
+            with open("topo/tree_conv.nwk", "w") as outTre:
+                outTre.write(conv_root.get_newick_repr() + ";\n")
 
-    # subprocess.Popen(" ".join(cmds["diffsel1"]), shell=True,
-    #                  cwd=TOP + "/" + "diffsel", stderr=subprocess.DEVNULL,
-    #                  stdout=subprocess.DEVNULL)
-    # subprocess.Popen(" ".join(cmds["diffsel2"]), shell=True,
-    #                  cwd=TOP + "/" + "diffsel", stderr=subprocess.DEVNULL,
-    #                  stdout=subprocess.DEVNULL)
-
-    # if args.num_threads >= 6:
-    #     for k, v in cmds.items():
-    #         if k == "PCOC":
-    #             p = subprocess.Popen(" ".join(v), shell=True)
-    #             try:
-    #                 p.wait(timeout=5)
-    #             except subprocess.TimeoutExpired:
-    #                 continue
-    #         elif k.startswith("diffsel"):
-    #             subprocess.Popen(" ".join(v), shell=True,
-    #                              cwd=TOP + "/" + k[:-1])
-    #         else:
-    #             subprocess.Popen(" ".join(v), shell=True, cwd=TOP + "/" + k)
+            os.chdir("topo")
+            m = calc_topological.optimize_model(TOP + "/" + args.AA_aln,
+                                                "tree.nwk",
+                                                "non_conv",
+                                                model=None)
+            calc_topological.optimize_model(TOP + "/" + args.AA_aln,
+                                            "tree_conv.nwk",
+                                            "conv",
+                                            model=m)
+            df_non_conv = calc_topological.tp_to_dict("non_conv.sitelh")
+            df_conv = calc_topological.tp_to_dict("conv.sitelh")
+            df_final = pd.merge(df_non_conv[["sites", "logl"]],
+                                df_conv[["sites", "logl"]],
+                                on="sites",
+                                suffixes=['_non_conv', '_conv'])
+            df_final["topological"] = list(map(calc_topological.prob_ap,
+                                               df_final["logl_conv"],
+                                               df_final["logl_non_conv"]))
+            df_final = df_final[["sites", "topological"]]
+            df_final.to_csv("topo_output.txt", sep=",", index=False)
+            os.chdir(TOP)
