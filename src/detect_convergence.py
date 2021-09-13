@@ -1,8 +1,6 @@
 #! /usr/bin/python3
 
-from datetime import time
 import os
-from re import sub
 import sys
 import glob
 import argparse
@@ -39,10 +37,6 @@ def parse_scenario(path):
                     scenarios[nCond] += [int(x) for x in i.split(",")]
                 nCond += 1
     return scenarios, nCond, scenarioStr
-
-
-"""to run this script, you will first have to do source ~/.bashrc in the shell,
-in order to make sure that the CMD_PCOC_DOCKER alias has the correct paths"""
 
 
 if __name__ == "__main__":
@@ -250,7 +244,9 @@ if __name__ == "__main__":
                              stderr=subprocess.DEVNULL,
                              stdout=subprocess.DEVNULL)
         if m == "PCOC":
-            p = subprocess.Popen(" ".join(cmds["PCOC"]), shell=True)
+            p = subprocess.Popen(" ".join(cmds["PCOC"]), shell=True,
+                                 stderr=subprocess.DEVNULL,
+                                 stdout=subprocess.DEVNULL)
             try:
                 p.wait(5)
             except subprocess.TimeoutExpired:
@@ -270,7 +266,9 @@ if __name__ == "__main__":
             with open("topo/tree.nwk", "w") as outTre:
                 outTre.write(non_conv_root.get_newick_repr() + ";\n")
 
-            with open(glob.glob("PCOC/RUN_*/Trees/tree_conv.nhx")[0], "r") as treF:
+            with open(
+                      glob.glob("PCOC/RUN_*/Trees/tree_conv.nhx")[0], "r"
+                      ) as treF:
                 nwkString = treF.readline().strip()
                 conv_root = tree_reader.read_tree_string(nwkString)
             for n in conv_root.iternodes(order="preorder"):

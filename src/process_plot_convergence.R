@@ -3,11 +3,11 @@ require(viridis)
 require(RColorBrewer)
 require(grid)
 
-setwd("~/Dropbox/cary_projects/DODA/cary/new_conv_2021/strict/recon_topo/") # set wd here
+setwd("~/Dropbox/cary_projects/DODA/new_conv_2021/strict/recon_topo/prank/brlen_cln_aln/br_part_1st_origin") # set wd here
 
 # diffsel
 
-meandiffsel <- read.csv("br_part_special/diffsel/2cond/run1_cln_1.meandiffsel", sep = "\t", header = F)[,1:21]
+meandiffsel <- read.csv("diffsel/run1_1.meandiffsel", sep = "\t", header = F)[,1:21]
 colnames(meandiffsel) <- c("pos",'A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y')
 score <- t(apply(meandiffsel, 1, function(x) {2 * abs(0.5 - x[2:21])}))
 meandiffsel$max <- apply(score, 1, max)
@@ -15,18 +15,18 @@ meandiffsel$max_aa <- apply(score, 1, function(x) {colnames(score)[which.max(x)]
 
 # msd
 
-msd <- read.csv("br_part_original/prank/msd/output.txt", sep="\t", skip=3, header=F)
+msd <- read.csv("msd/output.txt", sep="\t", skip=3, header=F)
 msd <- msd[order(msd$V1),]
 msd$score <- 1-as.numeric(msd$V2)
 
 # PCOC
 
-pcoc <- read.csv("br_part_special/PCOC/prank_PCOC_C60_aa_brlen_unroot/RUN_20210430_084954/DODAa_combined_no_og_strict_for_synth.cds.fa.nostop.name.noF.best.fas.results.tsv",
+pcoc <- read.csv("PCOC/RUN_20210702_114952/DODAa_combined_no_og_strict_for_synth.cds.fa.nostop.name.noF.best.fas.results.tsv",
                  sep="\t", header=T) # no transformations necessary
 
 # tdg09
 
-out <- yaml.load_file("br_part_special/prank/tdg09/prank_JTT+G_out.txt")
+out <- yaml.load_file("tdg09/tdg09_out.txt")
 tdg09 <- as.data.frame(matrix(unlist(out$FullResults), ncol=9, byrow=T))
 colnames(tdg09) <- c("pos","ssFparam","ssFlogL","lssFparam","lssFlogL","deltaLogL","df","LRT","FDR")
 tdg09$score <- 1-as.numeric(tdg09$FDR)
@@ -34,7 +34,7 @@ tdg09$score[is.na(tdg09$score)] <- 0.0
 
 # topo
 
-topo <- read.csv("br_part_special/prank/topo/prank_JTT+G_topo_out.txt", header=T)
+topo <- read.csv("topo/topo_output.txt", header=T)
 
 
 # all
@@ -74,9 +74,9 @@ for (i in 1:max(results$pos)) {
   #   par(bg="gold")
   # }
   if (i %in% c(1,29,57,85,113,141,169,197,225,253)) {
-    barplot(sitedf$score, ylim=c(0,1), col = cols)
+    barplot(sitedf$score, ylim=c(0,1), col = cols, border = NA)
   } else {
-  barplot(sitedf$score, yaxt="n", ylim=c(0,1), col = cols)
+  barplot(sitedf$score, yaxt="n", ylim=c(0,1), col = cols, border = NA)
   }
   # if (i %% 5 == 0) {
     mtext(text=i, side=1, line = 1, cex = 0.7)
