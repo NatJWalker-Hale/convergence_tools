@@ -1,13 +1,11 @@
 #! /usr/bin/python3
 
-from asyncio.subprocess import DEVNULL
-from calendar import c
+
 import os
 import sys
 import glob
 import argparse
 import subprocess
-from time import time
 import pandas as pd
 import tree_reader
 import calc_topological
