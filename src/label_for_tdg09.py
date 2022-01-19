@@ -23,8 +23,8 @@ def label_for_tdg09(root, seqDict, scenarioDict, cond0, cond1,
     for n in root.iternodes(order="preorder"):
         if n.number in scenarioDict[1]:
             if n.istip:
-                n.label = n.label.replace("_" + str(n.number),
-                                          "", 1)
+                # n.label = n.label.replace("_" + str(n.number),
+                #                           "", 1)
                 newLab = cond1 + "_" + n.label
                 newSeqDict[newLab] = seqDict[n.label]
                 n.label = newLab
@@ -32,8 +32,8 @@ def label_for_tdg09(root, seqDict, scenarioDict, cond0, cond1,
                 n.label = cond1
         else:
             if n.istip:
-                n.label = n.label.replace("_" + str(n.number),
-                                          "", 1)
+                # n.label = n.label.replace("_" + str(n.number),
+                #                           "", 1)
                 newLab = cond0 + "_" + n.label
                 newSeqDict[newLab] = seqDict[n.label]
                 n.label = newLab
@@ -64,8 +64,8 @@ if __name__ == "__main__":
         sys.argv.append("-h")
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("tree", help="newick tree with PAML-style labels to \
-                        transform to tdg09 format")
+    parser.add_argument("tree", help="newick tree to transform to tdg09 \
+                        format")
     parser.add_argument("alignment", help="FASTA-formatted alignment matching \
                         sequences in tree")
     parser.add_argument("scenario", help="PCOC-formatted scenario in txt file")

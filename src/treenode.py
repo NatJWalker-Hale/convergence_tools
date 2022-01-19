@@ -13,20 +13,20 @@ class Node:
         self.note = ""
         self.number = 0  # this is my mod of Stephen's
 
-    def add_child(self,child):
-        #make sure that the child is not already in there
+    def add_child(self, child):
+        # make sure that the child is not already in there
         assert child not in self.children
         self.children.append(child)
         child.parent = self
-    
-    def remove_child(self,child):
-        #make sure that the child is in there
+
+    def remove_child(self, child):
+        # make sure that the child is in there
         assert child in self.children
         self.children.remove(child)
         child.parent = None
-    
-    def leaves(self,v=None):
-        if v == None:
+
+    def leaves(self, v=None):
+        if v is not None:
             v = []
         if len(self.children) == 0:
             v.append(self)
@@ -36,12 +36,12 @@ class Node:
         return v
 
     def leaves_fancy(self):
-        return [n for n in self.iternodes() if n.istip ]
+        return [n for n in self.iternodes() if n.istip]
 
     def lvsnms(self):
-        return [n.label for n in self.iternodes() if len(n.children) == 0 ]
+        return [n.label for n in self.iternodes() if len(n.children) == 0]
 
-    def iternodes(self,order="preorder"):
+    def iternodes(self, order="preorder"):
         if order.lower() == "preorder":
             yield self
         for child in self.children:
@@ -75,6 +75,7 @@ class Node:
         # for my purposes
 
     def number_tree(self):
+        # modifies in place
         c = 0
         for n in self.iternodes(order="postorder"):
             if n.parent is None:
@@ -82,10 +83,11 @@ class Node:
             else:
                 n.number = c
                 c += 1
+        # this will overwrite nums if present
 
     def prune(self):
         p = self.parent
-        if p != None:
+        if p is not None:
             p.remove_child(self)
         return p
 
@@ -103,7 +105,7 @@ class Node:
                 ret += ")"
             else:
                 ret += ","
-        if self.label != None and "paint" in self.data:
+        if self.label is not None and "paint" in self.data:
             ret += self.label
         return ret
 
@@ -117,38 +119,64 @@ class Node:
                 ret += ")"
             else:
                 ret += ","
-        if self.label != None:
+        if self.label is not None:
             ret += self.label
-            #ret += str(self.label)
-        if shownum == True:
+            # ret += str(self.label)
+        if shownum:
             if self.istip:
                 ret += "_" + str(self.number)
             else:
                 ret += str(self.number)
         if self.note != "":
             ret += "["+self.note+"]"
-        if showbl == True:
-            if self.parent != None:
-                ret += ":" + format(self.length,'.12f')
+        if showbl:
+            if self.parent is not None:
+                ret += ":" + format(self.length, '.12f')
         return ret
 
-    def get_newick_repr_data(self,datan,showbl=False):
+    def get_newick_repr_ete(self, showbl=False, shownum=False):
+        """puts NHX field after brlen"""
         ret = ""
         for i in range(len(self.children)):
             if i == 0:
                 ret += "("
-            ret += self.children[i].get_newick_repr_data(datan,showbl)
+            ret += self.children[i].get_newick_repr_ete(showbl, shownum)
+            if i == len(self.children)-1:
+                ret += ")"
+            else:
+                ret += ","
+        if self.label is not None:
+            ret += self.label
+            # ret += str(self.label)
+        if shownum:
+            if self.istip:
+                ret += "_" + str(self.number)
+            else:
+                ret += str(self.number)
+        if showbl:
+            if self.parent is not None:
+                ret += ":" + format(self.length, '.12f')
+        if self.note != "":
+            ret += "["+self.note+"]"
+        return ret
+
+    def get_newick_repr_data(self, datan, showbl=False):
+        ret = ""
+        for i in range(len(self.children)):
+            if i == 0:
+                ret += "("
+            ret += self.children[i].get_newick_repr_data(datan, showbl)
             if i == len(self.children)-1:
                 ret += ")"
             else:
                 ret += ","
         if datan in self.data:
             ret += self.data[datan]
-        elif self.label != None:
+        elif self.label is not None:
             ret += self.label
         if self.note != "":
             ret += "["+self.note+"]"
-        if showbl == True:
+        if showbl:
             ret += ":" + str(self.length)
         return ret
 

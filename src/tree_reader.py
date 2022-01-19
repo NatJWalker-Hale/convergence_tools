@@ -1,7 +1,5 @@
-import string
 import sys
 from treenode import Node
-# from cnode import Node
 
 
 def read_tree_string(instr):

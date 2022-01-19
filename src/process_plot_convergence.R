@@ -47,7 +47,7 @@ results <- data.frame(pos=pcoc$Sites,
                       topo=topo$topological
                       )
 
-results$pass <- apply(results[,2:6],1,function(x) {sum(x > 0.9)})
+results$pass <- apply(results[,2:6],1,function(x) {sum(x > 0.95)})
 
 #write.csv(x = results, "br_part_original/prank/all_results.csv", row.names = F)
 #write.csv(x = results, "br_part_1st_origin/prank/all_results.csv", row.names = F)
@@ -88,6 +88,179 @@ for (i in 1:max(results$pos)) {
   #   popViewport()
   # }
 }
+
+# multiple separate bars on one line
+# par(mfrow=c(5,1))
+
+conv_sub_sites <- read.table("~/Dropbox/cary_projects/DODA/figures/convergent_sub_sites_cln.txt", header=F)
+conv_sub_sites$col <- c(rep("blue",5),
+                        "red",
+                        "blue",
+                        "red",
+                        rep("blue",5),
+                        "red",
+                        "blue",
+                        "red",
+                        rep("blue",7),
+                        rep("red",3),
+                        rep("blue",5),
+                        rep("red",2),
+                        rep("blue",2),
+                        "red",
+                        rep("blue",3),
+                        "red",
+                        rep("blue",3),
+                        rep("red",2),
+                        rep("blue",5),
+                        "red",
+                        rep("blue",10))
+conv_sub_sites_vec <- conv_sub_sites$V2
+
+col_vec <- rep("#cccccc", length(results$pos))
+col_vec[conv_sub_sites_vec] <- conv_sub_sites$col
+
+# diffsel
+
+plot(results$diffsel, type="h", col=col_vec,
+     frame.plot = F, xlim=c(1,274), ylim=c(0,1.0),
+     ylab="", xlab="", xaxt="n")
+
+pos0.95 <- results$pos[which(results$diffsel >= 0.95)]
+points_col_vec <- rep("#cccccc", length(pos0.95))
+
+for (i in pos0.95) {
+  if (i %in% conv_sub_sites$V2) {
+    points_col_vec[which(pos0.95 == i)] <- conv_sub_sites$col[which(conv_sub_sites$V2 == i)]
+  }
+}
+
+points(which(results$diffsel >= 0.95),
+       results$diffsel[results$diffsel >= 0.95],
+       col="#cccccc",
+       pch=20)
+
+points(pos0.95,
+       results[which(results$pos %in% pos0.95),]$diffsel,
+       col=points_col_vec,
+       pch=20)
+
+abline(h=0.95,
+       lty=3)
+
+# msd
+
+plot(results$msd, type="h", col=col_vec,
+     frame.plot = F, xlim=c(1,274), ylim=c(0,1.0),
+     ylab="", xlab="", xaxt="n")
+
+pos0.95 <- results$pos[which(results$msd >= 0.95)]
+points_col_vec <- rep("#cccccc", length(pos0.95))
+
+for (i in pos0.95) {
+  if (i %in% conv_sub_sites$V2) {
+    points_col_vec[which(pos0.95 == i)] <- conv_sub_sites$col[which(conv_sub_sites$V2 == i)]
+  }
+}
+
+points(which(results$msd >= 0.95),
+       results$msd[results$msd >= 0.95],
+       col="#cccccc",
+       pch=20)
+
+points(pos0.95,
+       results[which(results$pos %in% pos0.95),]$msd,
+       col=points_col_vec,
+       pch=20)
+
+abline(h=0.95,
+       lty=3)
+
+# pcoc
+
+plot(results$pcoc, type="h", col=col_vec,
+     frame.plot = F, xlim=c(1,274), ylim=c(0,1.0),
+     ylab="", xlab="", xaxt="n")
+
+pos0.95 <- results$pos[which(results$pcoc >= 0.95)]
+points_col_vec <- rep("#cccccc", length(pos0.95))
+
+for (i in pos0.95) {
+  if (i %in% conv_sub_sites$V2) {
+    points_col_vec[which(pos0.95 == i)] <- conv_sub_sites$col[which(conv_sub_sites$V2 == i)]
+  }
+}
+
+points(which(results$pcoc >= 0.95),
+       results$pcoc[results$pcoc >= 0.95],
+       col="#cccccc",
+       pch=20)
+
+points(pos0.95,
+       results[which(results$pos %in% pos0.95),]$pcoc,
+       col=points_col_vec,
+       pch=20)
+
+abline(h=0.95,
+       lty=3)
+
+# tdg09
+
+plot(results$tdg09, type="h", col=col_vec,
+     frame.plot = F, xlim=c(1,274), ylim=c(0,1.0),
+     ylab="", xlab="", xaxt="n")
+
+pos0.95 <- results$pos[which(results$tdg09 >= 0.95)]
+points_col_vec <- rep("#cccccc", length(pos0.95))
+
+for (i in pos0.95) {
+  if (i %in% conv_sub_sites$V2) {
+    points_col_vec[which(pos0.95 == i)] <- conv_sub_sites$col[which(conv_sub_sites$V2 == i)]
+  }
+}
+
+points(which(results$tdg09 >= 0.95),
+       results$tdg09[results$tdg09 >= 0.95],
+       col="#cccccc",
+       pch=20)
+
+points(pos0.95,
+       results[which(results$pos %in% pos0.95),]$tdg09,
+       col=points_col_vec,
+       pch=20)
+
+abline(h=0.95,
+       lty=3)
+
+# topo
+
+plot(results$topo, type="h", col=col_vec,
+     frame.plot = F, xlim=c(1,274), ylim=c(0,1.0),
+     ylab="", xlab="", xaxt="n")
+
+pos0.95 <- results$pos[which(results$topo >= 0.95)]
+points_col_vec <- rep("#cccccc", length(pos0.95))
+
+for (i in pos0.95) {
+  if (i %in% conv_sub_sites$V2) {
+    points_col_vec[which(pos0.95 == i)] <- conv_sub_sites$col[which(conv_sub_sites$V2 == i)]
+  }
+}
+
+points(which(results$topo >= 0.95),
+       results$topo[results$topo >= 0.95],
+       col="#cccccc",
+       pch=20)
+
+points(pos0.95,
+       results[which(results$pos %in% pos0.95),]$topo,
+       col=points_col_vec,
+       pch=20)
+
+abline(h=0.95,
+       lty=3)
+
+
+# venn diagrams
 
 require(VennDiagram)
 
