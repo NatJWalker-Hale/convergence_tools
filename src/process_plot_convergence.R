@@ -3,7 +3,7 @@ require(viridis)
 require(RColorBrewer)
 require(grid)
 
-setwd("~/Dropbox/cary_projects/DODA/new_conv_2021/strict/recon_topo/prank/brlen_cln_aln/br_part_1st_origin") # set wd here
+setwd("/home/nat/Dropbox/cary_projects/DODA/new_conv_2021/strict/recon_topo/prank/brlen_cln_aln/br_part_1st_origin/exclude_kewa/") # set wd here
 
 # diffsel
 
@@ -21,8 +21,11 @@ msd$score <- 1-as.numeric(msd$V2)
 
 # PCOC
 
-pcoc <- read.csv("PCOC/RUN_20210702_114952/DODAa_combined_no_og_strict_for_synth.cds.fa.nostop.name.noF.best.fas.results.tsv",
-                 sep="\t", header=T) # no transformations necessary
+pcoc <- read.csv(Sys.glob("PCOC/RUN_*/*.results.tsv"),
+                 sep="\t", header=T)
+# switch NAs for too gappy sites to 0
+
+pcoc$PCOC_V1[is.na(pcoc$PCOC_V1)] <- 0.0
 
 # tdg09
 
@@ -46,6 +49,8 @@ results <- data.frame(pos=pcoc$Sites,
                       tdg09=tdg09$score,
                       topo=topo$topological
                       )
+
+write.csv(results, "all_output.csv", row.names = FALSE)
 
 results$pass <- apply(results[,2:6],1,function(x) {sum(x > 0.95)})
 
@@ -92,29 +97,9 @@ for (i in 1:max(results$pos)) {
 # multiple separate bars on one line
 # par(mfrow=c(5,1))
 
-conv_sub_sites <- read.table("~/Dropbox/cary_projects/DODA/figures/convergent_sub_sites_cln.txt", header=F)
-conv_sub_sites$col <- c(rep("blue",5),
-                        "red",
-                        "blue",
-                        "red",
-                        rep("blue",5),
-                        "red",
-                        "blue",
-                        "red",
-                        rep("blue",7),
-                        rep("red",3),
-                        rep("blue",5),
-                        rep("red",2),
-                        rep("blue",2),
-                        "red",
-                        rep("blue",3),
-                        "red",
-                        rep("blue",3),
-                        rep("red",2),
-                        rep("blue",5),
-                        "red",
-                        rep("blue",10))
-conv_sub_sites_vec <- conv_sub_sites$V2
+conv_sub_sites <- read.table("~/Dropbox/cary_projects/DODA/figures/convergent_sub_sites_cln.txt", header=T)
+
+conv_sub_sites_vec <- conv_sub_sites$pos_cln
 
 col_vec <- rep("#cccccc", length(results$pos))
 col_vec[conv_sub_sites_vec] <- conv_sub_sites$col
@@ -129,8 +114,8 @@ pos0.95 <- results$pos[which(results$diffsel >= 0.95)]
 points_col_vec <- rep("#cccccc", length(pos0.95))
 
 for (i in pos0.95) {
-  if (i %in% conv_sub_sites$V2) {
-    points_col_vec[which(pos0.95 == i)] <- conv_sub_sites$col[which(conv_sub_sites$V2 == i)]
+  if (i %in% conv_sub_sites$pos_cln) {
+    points_col_vec[which(pos0.95 == i)] <- conv_sub_sites$col[which(conv_sub_sites$pos_cln == i)]
   }
 }
 
@@ -157,8 +142,8 @@ pos0.95 <- results$pos[which(results$msd >= 0.95)]
 points_col_vec <- rep("#cccccc", length(pos0.95))
 
 for (i in pos0.95) {
-  if (i %in% conv_sub_sites$V2) {
-    points_col_vec[which(pos0.95 == i)] <- conv_sub_sites$col[which(conv_sub_sites$V2 == i)]
+  if (i %in% conv_sub_sites$pos_cln) {
+    points_col_vec[which(pos0.95 == i)] <- conv_sub_sites$col[which(conv_sub_sites$pos_cln == i)]
   }
 }
 
@@ -185,8 +170,8 @@ pos0.95 <- results$pos[which(results$pcoc >= 0.95)]
 points_col_vec <- rep("#cccccc", length(pos0.95))
 
 for (i in pos0.95) {
-  if (i %in% conv_sub_sites$V2) {
-    points_col_vec[which(pos0.95 == i)] <- conv_sub_sites$col[which(conv_sub_sites$V2 == i)]
+  if (i %in% conv_sub_sites$pos_cln) {
+    points_col_vec[which(pos0.95 == i)] <- conv_sub_sites$col[which(conv_sub_sites$pos_cln == i)]
   }
 }
 
@@ -213,8 +198,8 @@ pos0.95 <- results$pos[which(results$tdg09 >= 0.95)]
 points_col_vec <- rep("#cccccc", length(pos0.95))
 
 for (i in pos0.95) {
-  if (i %in% conv_sub_sites$V2) {
-    points_col_vec[which(pos0.95 == i)] <- conv_sub_sites$col[which(conv_sub_sites$V2 == i)]
+  if (i %in% conv_sub_sites$pos_cln) {
+    points_col_vec[which(pos0.95 == i)] <- conv_sub_sites$col[which(conv_sub_sites$pos_cln == i)]
   }
 }
 
@@ -241,8 +226,8 @@ pos0.95 <- results$pos[which(results$topo >= 0.95)]
 points_col_vec <- rep("#cccccc", length(pos0.95))
 
 for (i in pos0.95) {
-  if (i %in% conv_sub_sites$V2) {
-    points_col_vec[which(pos0.95 == i)] <- conv_sub_sites$col[which(conv_sub_sites$V2 == i)]
+  if (i %in% conv_sub_sites$pos_cln) {
+    points_col_vec[which(pos0.95 == i)] <- conv_sub_sites$col[which(conv_sub_sites$pos_cln == i)]
   }
 }
 

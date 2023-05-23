@@ -174,7 +174,7 @@ if __name__ == "__main__":
             sys.exit("A PCOC run already exists. "
                      "Delete to restart.")
         dockerStr = "docker run -e LOCAL_USER_ID=`id -u $USER` --rm -v \
-                    $PWD:$PWD -e CWD=$PWD carinerey/pcoc"
+                     $PWD:$PWD -e CWD=$PWD carinerey/pcoc:v1.0.1"
         cmd = [dockerStr,  # hard-coding a lot here
                "pcoc_det.py",
                "-t",
@@ -187,13 +187,14 @@ if __name__ == "__main__":
                "PCOC",
                "--plot",
                "--svg",
-               "-est_profiles",
-               "C60",
+               "-CATX_est",
+               "60",
                "--gamma",
                "--max_gap_allowed",
                "10",
                "--max_gap_allowed_in_conv_leaves",
                "10",
+               "--no_cleanup"
                ]
         # tried to run this with shell=False but too hard to get docker to work
         # userID, _ = subprocess.Popen(["id", "-u", os.environ["USER"]],
@@ -292,7 +293,8 @@ if __name__ == "__main__":
             subprocess.Popen(" ".join(cmds["diffsel1"]), shell=True,
                              cwd=TOP + "/" + "diffsel",
                              stdout=subprocess.DEVNULL,
-                             stderr=subprocess.DEVNULL)
+                             stderr=subprocess.DEVNULL
+                             )
             # try:
             #     diff1.wait(timeout=5)
             # except subprocess.TimeoutExpired:
@@ -300,7 +302,8 @@ if __name__ == "__main__":
             subprocess.Popen(" ".join(cmds["diffsel2"]), shell=True,
                              cwd=TOP + "/" + "diffsel",
                              stdout=subprocess.DEVNULL,
-                             stderr=subprocess.DEVNULL)
+                             stderr=subprocess.DEVNULL
+                             )
             # try:
             #     diff2.wait(timeout=5)
             # except subprocess.TimeoutExpired:
@@ -308,12 +311,14 @@ if __name__ == "__main__":
         if m == "msd":
             subprocess.Popen(cmds["msd"], shell=False,
                              stderr=subprocess.DEVNULL,
-                             stdout=subprocess.DEVNULL)
+                             stdout=subprocess.DEVNULL
+                             )
         if m == "PCOC":
             print(" ".join(cmds["PCOC"]))
             pcoc = subprocess.Popen(" ".join(cmds["PCOC"]), shell=True,
                                     stderr=subprocess.DEVNULL,
-                                    stdout=subprocess.DEVNULL)
+                                    stdout=subprocess.DEVNULL
+                                    )
             try:
                 pcoc.wait(5)
             except subprocess.TimeoutExpired:
