@@ -67,22 +67,32 @@ if __name__ == "__main__":
                         parent,child", type=str, nargs="+")
     parser.add_argument("-t", "--type", help="classify substitutions as \
                         convergent or coincident", action="store_true")
-    parser.add_argument("-r", "--reference", help="additionally print \
+    parser.add_argument("-rd", "--ref_desc", help="additionally print \
                         substitutions positions relative to the descendant \
+                        sequence in each comparison, instead of alignment \
+                        position", action="store_true")
+    parser.add_argument("-rp", "--ref_par", help="additionally print \
+                        substitutions positions relative to the parent \
                         sequence in each comparison, instead of alignment \
                         position", action="store_true")
     parser.add_argument("-aln", "--alignment", help="if reference: \
                         FASTA-formatted alignment to extract position \
                         correspondences", type=str)
+    parser.add_argument("-nc", "--nonconv", help="also write \
+                        non-site-overlapping changes on each branch",
+                        action="store_true")
+    # parser.add_argument("-d", "--degree", help="number of origins required \
+    #                     to call a convergent substitution (minimum 2, \
+    #                     default)", type=int, default=2)
     args = parser.parse_args()
 
-    nodes = [(x.split(",")[0], x.split(",")[1]) for x in args.branches]
-    if len(nodes) == 1:
+    branches = [(x.split(",")[0], x.split(",")[1]) for x in args.branches]
+    if len(branches) == 1:
         args.isin = args.branches
 
     subs = read_subs(args.subsfile)
 
-    if args.reference:
+    if args.ref_desc or args.ref_par:
         if not args.alignment:
             sys.stderr.write("must supply alignment for reference mode\n")
             sys.exit()
@@ -107,7 +117,7 @@ if __name__ == "__main__":
             notInSubsPos += [x[1] for x in subs[b]]
         allSubsPosUnion = sorted(list(set(inSubsPos) - set(notInSubsPos)))
     else:
-        branchCombs = permutations(nodes, args.atleast)
+        branchCombs = permutations(branches, args.atleast)
 
         allSubsPos = []
         for b in branchCombs:
@@ -129,57 +139,118 @@ if __name__ == "__main__":
 
         allSubsPosUnion = sorted(list(set.union(*allSubsPos)))
 
+    if args.ref_desc:
+        print("\t".join(["pos_aln",
+                         "pos_desc",
+                         "par",
+                         "desc",
+                         "sub",
+                         "type"]))
+    if args.ref_par:
+        print("\t".join(["pos_aln",
+                         "pos_par",
+                         "par",
+                         "desc",
+                         "sub",
+                         "type"]))
     for pos in allSubsPosUnion:
         if args.type:
             endStates = []
-            for n in nodes:
-                endStates += [s[2] for s in subs[n] if pos == s[1]]
+            for b in branches:
+                endStates += [s[2] for s in subs[b] if pos == s[1]]
                 if len(endStates) == 0:
                     continue
-            for n in nodes:
-                subsInPos = [s[0] + str(s[1]) + s[2] for s in subs[n]
+            for b in branches:
+                subsInPos = [s[0] + str(s[1]) + s[2] for s in subs[b]
                              if pos == s[1]]
                 if len(subsInPos) == 0:
                     continue
-                endState = [s[2] for s in subs[n] if pos == s[1]][0]
-                if endStates.count(endState) > 1:
+                # if args.groups is not None:
+                #     uniq = len(branches)
+                #     for g in args.groups:
+                #         g = [n for n in g.split(",")]
+                #         if set(chain.from_iterable(b)).issubset(set(g)):
+                #             uniq -= 1
+                #     if uniq < args.atleast:
+                #         print("Uniq less than at least")
+                #         continue
+                endState = [s[2] for s in subs[b] if pos == s[1]][0]
+                if endStates.count(endState) >= args.atleast:
                     """make changes here in future to add requirements of 2-,
                     3-way overlap etc."""
-                    if args.reference:
+                    if args.ref_desc:
                         print("\t".join([str(pos),
-                                         str(corres[n[1]][pos]),
-                                         n[0],
-                                         n[1],
+                                         str(corres[b[1]][pos]),
+                                         b[0],
+                                         b[1],
+                                         ",".join(subsInPos), "CONV"]))
+                    elif args.ref_par:
+                        print("\t".join([str(pos),
+                                         str(corres[b[0]][pos]),
+                                         b[0],
+                                         b[1],
                                          ",".join(subsInPos), "CONV"]))
                     else:
-                        print("\t".join([str(pos), n[0], n[1],
+                        print("\t".join([str(pos), b[0], b[1],
                                         ",".join(subsInPos), "CONV"]))
                 else:
-                    if args.reference:
+                    if args.ref_desc:
                         print("\t".join([str(pos),
-                                         str(corres[n[1]][pos]),
-                                         n[0],
-                                         n[1],
+                                         str(corres[b[1]][pos]),
+                                         b[0],
+                                         b[1],
+                                         ",".join(subsInPos), "COIN"]))
+                    elif args.ref_par:
+                        print("\t".join([str(pos),
+                                         str(corres[b[0]][pos]),
+                                         b[0],
+                                         b[1],
                                          ",".join(subsInPos), "COIN"]))
                     else:
-                        print("\t".join([str(pos), n[0], n[1],
+                        print("\t".join([str(pos), b[0], b[1],
                                         ",".join(subsInPos), "COIN"]))
         else:
-            for n in nodes:
-                subsInPos = [s[0] + str(s[1]) + s[2] for s in subs[n]
+            for b in branches:
+                subsInPos = [s[0] + str(s[1]) + s[2] for s in subs[b]
                              if pos == s[1]]
                 if len(subsInPos) == 0:
                     continue
                 else:
-                    if args.reference:
+                    if args.ref_desc:
                         print("\t".join([str(pos),
-                                         str(corres[n[1]][pos]),
-                                         n[0],
-                                         n[1],
+                                         str(corres[b[1]][pos]),
+                                         b[0],
+                                         b[1],
+                                         ",".join(subsInPos)]))
+                    elif args.ref_par:
+                        print("\t".join([str(pos),
+                                         str(corres[n[0]][pos]),
+                                         b[0],
+                                         b[1],
                                          ",".join(subsInPos)]))
                     else:
-                        print("\t".join([str(pos), n[0], n[1],
+                        print("\t".join([str(pos), b[0], b[1],
                                         ",".join(subsInPos)]))
+    if args.nonconv:
+        for b in branches:
+            for s in subs[b]:
+                pos = s[1]
+                if pos not in allSubsPosUnion:
+                    if args.ref_desc:
+                        print("\t".join([str(pos),
+                                         str(corres[b[1]][pos]),
+                                         b[0],
+                                         b[1],
+                                         f"{s[0]}{s[1]}{s[2]}", "NONC"]))
+                    elif args.ref_par:
+                        print("\t".join([str(pos),
+                                         str(corres[b[0]][pos]),
+                                         b[0],
+                                         b[1],
+                                         f"{s[0]}{s[1]}{s[2]}", "NONC"]))
+                    else:
+                        print("\t".join([str(pos), b[0], b[1],
+                                        f"{s[0]}{s[1]}{s[2]}", "NONC"]))
     # subsPos = []
     # for n in nodes:
     #     subsPos.append(set([x[1] for x in subs[n]]))
