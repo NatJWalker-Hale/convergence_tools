@@ -71,7 +71,13 @@ def get_opt_site_specific_frequencies(col_dict: dict, tree: str) -> dict:
 
 
 def parse_site_frequencies_file(inf: str) -> dict:
-    
+    freqs = {}
+    with open(inf, "r") as sff:
+        for line in sff:
+            line = line.strip().split("\t")
+            freqs[int(line[0])] = np.array([float(x) for 
+                                            x in line[1].split(",")])
+    return freqs
 
 
 def parse_paml_rates(path: str) -> dict:
@@ -197,6 +203,8 @@ if __name__ == "__main__":
     parser.add_argument("-l", "--label", help="Print labelled tree and \
                         quit", action="store_true")
     args = parser.parse_args()
+    if args.site_frequencies_file:
+        args.site_frequencies = True
     
     curroot = next(tree_reader.read_tree_file_iter(args.tree))
 
@@ -227,7 +235,7 @@ if __name__ == "__main__":
                     extants[n.label] = ancs[n.label]
                 except KeyError:
                     sys.stderr.write(f"{n.label} not in provided FASTA - "
-                                    f"extant sequences need to be included")
+                                     f"extant sequences need to be included\n")
                     sys.exit()
         modJTT.calc_empirical_freqs(extants)
         modJTT.set_empirical_freqs()
@@ -237,22 +245,24 @@ if __name__ == "__main__":
 
     if args.site_frequencies:
         if args.site_frequencies_file:
-
-        extants = {}
-        for n in curroot.iternodes():
-            if n.istip:
-                try:
-                    extants[n.label] = ancs[n.label]
-                except KeyError:
-                    sys.stderr.write(f"{n.label} not in provided FASTA - "
-                                    f"extant sequences need to be included")
-                    sys.exit()
-        extant_cols = get_columns(extants)
-        site_freqs = get_opt_site_specific_frequencies(extant_cols,
-                                                       args.tree)
-        with open("site_frequencies.tsv", "w") as siteff:
-            for k, v in site_freqs.items():
-                siteff.write(f"{k}\t{','.join([str(f) for f in v])}\n")
+            site_freqs = parse_site_frequencies_file(args.site_frequencies_file)
+        else:
+            extants = {}
+            for n in curroot.iternodes():
+                if n.istip:
+                    try:
+                        extants[n.label] = ancs[n.label]
+                    except KeyError:
+                        sys.stderr.write(f"{n.label} not in provided FASTA - "
+                                         f"extant sequences need to be "
+                                         f"included\n")
+                        sys.exit()
+            extant_cols = get_columns(extants)
+            site_freqs = get_opt_site_specific_frequencies(extant_cols,
+                                                        args.tree)
+            with open("site_frequencies.tsv", "w") as siteff:
+                for k, v in site_freqs.items():
+                    siteff.write(f"{k}\t{','.join([str(f) for f in v])}\n")
 
     branches = [(x.split(",")[0], x.split(",")[1]) for x in args.branches]
     if len(branches) == 1:
@@ -267,6 +277,8 @@ if __name__ == "__main__":
     good_combs = []
     for b in branch_combs:
         remove = False
+        if b[0][0] == b[1][0]:  # sisters
+            remove = True
         # start arbitrarily with left parent
         n = node_dict[b[0][0]]
         going = True
@@ -293,10 +305,7 @@ if __name__ == "__main__":
     
     for b in good_combs:
         conv_prob_sum = 0.0
-        if b[0][0] == b[1][0]:
-            # print("this happens")
-            continue  # place holder for the special case
-        elif node_dict[b[0][1]].istip or node_dict[b[1][1]].istip:
+        if node_dict[b[0][1]].istip or node_dict[b[1][1]].istip:
             # in this case, the conditional probabilities that node 2 or 4 
             # are in any state will be 0 unless the tip is observed to be in 
             # that state
