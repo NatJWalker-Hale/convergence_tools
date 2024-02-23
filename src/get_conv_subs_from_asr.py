@@ -1,9 +1,9 @@
-#! /usr/bin/python3
+#!/usr/bin/env python3
 
 import sys
 import argparse
 from parse_fasta import parse_fasta
-from itertools import permutations, chain
+from itertools import combinations, chain
 
 
 def read_subs(path):
@@ -117,7 +117,7 @@ if __name__ == "__main__":
             notInSubsPos += [x[1] for x in subs[b]]
         allSubsPosUnion = sorted(list(set(inSubsPos) - set(notInSubsPos)))
     else:
-        branchCombs = permutations(branches, args.atleast)
+        branchCombs = combinations(branches, 2)
 
         allSubsPos = []
         for b in branchCombs:

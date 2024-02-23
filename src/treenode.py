@@ -84,6 +84,16 @@ class Node:
                 n.number = c
                 c += 1
         # this will overwrite nums if present
+                
+    def number_nodes(self):
+        # modifies in place
+        c = 1
+        for n in self.iternodes(order="preorder"):
+            if n.istip:
+                continue
+            n.label = f"N{c}"
+            c += 1
+        # this will overwrite internal labels if present
 
     def prune(self):
         p = self.parent
