@@ -100,8 +100,7 @@ if __name__ == "__main__":
                                          f"direct ancestor of {s[0]}\n")
                         remove = True
                         break
-                    else:
-                        n = p
+                    n = p
 
                 n = node_dict[s[0][1]]  # left descendant
                 for c in n.iternodes():
