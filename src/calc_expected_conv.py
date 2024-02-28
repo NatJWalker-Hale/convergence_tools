@@ -3,15 +3,14 @@
 
 import sys
 import argparse
-import tree_reader
-import numpy as np
-from treenode import Node
 from collections import Counter
 from itertools import combinations
+import numpy as np
+import tree_reader
+from treenode import Node
 from parse_fasta import parse_fasta
 from discrete_models import Discrete_model
 from optimise_raxmlng import get_optimised_freqs
-
 
 
 AAIDX = {"A": 0, "R": 1, "N": 2, "D": 3, "C": 4, "Q": 5, "E": 6, "G": 7,
@@ -27,13 +26,13 @@ def get_columns(seq_dict: dict) -> dict:
     (key: position, value: dict{name: state})"""
     col_dict = {}
     pos = 0
-    for k, v in seq_dict.items():
-        for i in v:
+    for header, seq in seq_dict.items():
+        for char in seq:
             try:
-                col_dict[pos][k] = i
+                col_dict[pos][header] = char
             except KeyError:
                 col_dict[pos] = {}
-                col_dict[pos][k] = i
+                col_dict[pos][header] = char
             pos += 1
         pos = 0
     return col_dict
@@ -47,7 +46,7 @@ def get_site_specific_frequencies(col_dict: dict) -> dict:
         freqs = []
         tot = 0
         counts = Counter([c for c in column.values()])
-        tot += sum([x[1] for x in counts.items() if x[0] in AA])
+        tot += sum(x[1] for x in counts.items() if x[0] in AA)
         for state in AA:
             freqs.append(counts[state] / tot)
         freqs = np.array(freqs)
@@ -60,22 +59,23 @@ def get_opt_site_specific_frequencies(col_dict: dict, tree: str) -> dict:
     optimises ML frequencies with raxml-ng and returns the frequencies as a 
     dictionary"""
     out = {}
-    for k, v in col_dict.items():
-        with open(f"tmp_{k}.aln", "w") as sitef:
-            for header, char in v.items():
+    for pos, col in col_dict.items():
+        with open(f"tmp_{pos}.aln", "w", encoding='utf-8') as sitef:
+            for header, char in col.items():
                 sitef.write(f">{header}\n")
                 sitef.write(f"{char}\n")
-        freqs = get_optimised_freqs(tree, f"tmp_{k}.aln", "JTT+FO")
-        out[k] = freqs
+        freqs = get_optimised_freqs(tree, f"tmp_{pos}.aln", "JTT+FO")
+        out[pos] = freqs
     return out
 
 
 def parse_site_frequencies_file(inf: str) -> dict:
+    """parse a TSV of pos\tfreqs, where freqs is comma-separated"""
     freqs = {}
-    with open(inf, "r") as sff:
+    with open(inf, "r", encoding="utf-8") as sff:
         for line in sff:
             line = line.strip().split("\t")
-            freqs[int(line[0])] = np.array([float(x) for 
+            freqs[int(line[0])] = np.array([float(x) for
                                             x in line[1].split(",")])
     return freqs
 
@@ -84,17 +84,17 @@ def parse_paml_rates(path: str) -> dict:
     """Takes a paml 'rates' file containing estimated posterior mean rate per
     site and returns a dictionary of {site: rate}"""
     out = {}
-    with open(path, "r") as inf:
+    with open(path, "r", encoding='utf-8') as inf:
         going = False
         reading = False
         for line in inf:
             if line.strip().startswith("Site"):
                 going = True
                 continue
-            elif line == "\n" and going and not reading:
+            if line == "\n" and going and not reading:
                 reading = True
                 continue
-            elif line == "\n" and going and reading:
+            if line == "\n" and going and reading:
                 break
 
             if going and reading:
@@ -118,13 +118,14 @@ def get_mrca(tree: Node, node1: str, node2: str) -> Node:
 
 
 def map_state_array(aa: str) -> np.array:
+    """returns a dim20 array of zeros with idx aa = 1"""
     idx = AAIDX[aa]
     array = np.zeros(20)
     array[idx] = 1.
     return array
 
 
-def get_path_length_mrca(tree: Node, node1: str, node2: str):
+def get_path_length_mrca(tree: Node, node1: str, node2: str) -> tuple:
     """returns the sum of the branch lengths between two labelled nodes and
     their mrca"""
     mrca = None
@@ -132,32 +133,32 @@ def get_path_length_mrca(tree: Node, node1: str, node2: str):
     for n in tree.iternodes():
         if n.label == node1:
             going = True
-            brlen = 0.0
+            brlen = 0.
             while going:
-                p = n
-                brlen += n.length
-                if node2 in [i.label for i in p.iternodes()]:
+                if node2 in [i.label for i in n.iternodes()]:  # node IS mrca
                     going = False
-                    mrca = p
+                    mrca = n
                 else:
-                    n = p.parent
+                    brlen += n.length
+                    n = n.parent
     lengths.append(brlen)
     for n in tree.iternodes():
         if n.label == node2:
             going = True
-            brlen = 0.0
+            brlen = 0.
             while going:
-                p = n
-                brlen += n.length
-                if node1 in [i.label for i in p.iternodes()]:
+                if node1 in [i.label for i in n.iternodes()]:  # node IS mrca
                     going = False
+                    mrca = n
                 else:
-                    n = p.parent
+                    brlen += n.length
+                    n = n.parent
     lengths.append(brlen)
     return lengths, mrca
 
 
 def get_path_length_root(tree: Node, node1: str):
+    """returns the sum of branch lengths between the node and the root"""
     for n in tree.iternodes():
         if n.label == node1:
             going = True
@@ -205,7 +206,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     if args.site_frequencies_file:
         args.site_frequencies = True
-    
+
     curroot = next(tree_reader.read_tree_file_iter(args.tree))
 
     curroot.number_nodes()
@@ -221,7 +222,7 @@ if __name__ == "__main__":
     if args.rates:
         rates_dict = parse_paml_rates(args.rates)
 
-    ancs = dict([x for x in parse_fasta(args.ancestors)])
+    ancs = dict(parse_fasta(args.ancestors))
     anc_cols = get_columns(ancs)
 
     # set up model
@@ -260,7 +261,7 @@ if __name__ == "__main__":
             extant_cols = get_columns(extants)
             site_freqs = get_opt_site_specific_frequencies(extant_cols,
                                                         args.tree)
-            with open("site_frequencies.tsv", "w") as siteff:
+            with open("site_frequencies.tsv", "w", encoding="utf-8") as siteff:
                 for k, v in site_freqs.items():
                     siteff.write(f"{k}\t{','.join([str(f) for f in v])}\n")
 
@@ -271,13 +272,15 @@ if __name__ == "__main__":
 
     if len(branches) == 2:
         branch_combs = [tuple(branches)]
-    else: 
-        branch_combs = [x for x in combinations(branches, 2)]
+    else:
+        branch_combs = list(combinations(branches, 2))
 
     good_combs = []
     for b in branch_combs:
         remove = False
         if b[0][0] == b[1][0]:  # sisters
+            sys.stderr.write(f"skipping combination {b} as {b[0]} is "
+                             f"sister to {b[1]}\n")
             remove = True
         # start arbitrarily with left parent
         n = node_dict[b[0][0]]
@@ -302,114 +305,138 @@ if __name__ == "__main__":
 
         if not remove:
             good_combs.append(b)
-    
+
+
     for b in good_combs:
-        conv_prob_sum = 0.0
-        if node_dict[b[0][1]].istip or node_dict[b[1][1]].istip:
-            # in this case, the conditional probabilities that node 2 or 4 
-            # are in any state will be 0 unless the tip is observed to be in 
-            # that state
-            continue
-        else:
-            lengths, mrca = get_path_length_mrca(curroot, b[0][0], b[1][0])
-            # get lengths between node and MRCA
-            sites = 0
-            if not args.rates:  # do these once and save time
+        conv_prob_sum = 0.
+        div_prob_sum = 0.
+        lengths, mrca = get_path_length_mrca(curroot, b[0][0], b[1][0])
+        if mrca.label in (b[0][0], b[1][0]):
+            # if either of the nodes is the MRCA, we calculate probs for
+            # this node by conditioning on the state one node back, to
+            # avoid fixed states
+            lengths = [x + mrca.length for x in lengths]
+            mrca = mrca.parent
+        # get lengths between node and MRCA
+        sites = 0
+        if not args.rates:  # do these once and save time
+            p0 = modJTT.get_P(lengths[0])
+            p1 = modJTT.get_P(lengths[1])
+            p01 = modJTT.get_P(node_dict[b[0][1]].length)
+            p11 = modJTT.get_P(node_dict[b[1][1]].length)
+        for k, v in anc_cols.items():   # going by site
+            map_state = v[mrca.label]  # get MAP state of MRCA
+            if map_state == "-":
+                continue  # skip cases where mrca MAP is gap
+            nodes = [i for j in b for i in j]
+            states = [v[n] for n in nodes]
+            if "-" in states:
+                continue  # skip cases where any MAPs are inferred as gaps
+            if args.site_frequencies:
+                # set up model for site specific freqs
+                modJTT = Discrete_model()
+                modJTT.set_rate_JTT()
+                modJTT.set_frequencies(site_freqs[k])
+                with np.errstate(divide="raise"):
+                    # account for cases where 0 freqs cause problems
+                    try:
+                        modJTT.scale_rate_matrix()
+                    except FloatingPointError:
+                        sys.stderr.write(f"skipping site {k} where "
+                                            f"sparse frequencies caused a "
+                                            f"problem\n")
+                        continue
+            if args.rates:
+                p0 = modJTT.get_P(lengths[0], rates_dict[k])
+                p1 = modJTT.get_P(lengths[1], rates_dict[k])
+                p01 = modJTT.get_P(node_dict[b[0][1]].length,
+                                    rates_dict[k])
+                p11 = modJTT.get_P(node_dict[b[1][1]].length,
+                                    rates_dict[k])
+            else:
                 p0 = modJTT.get_P(lengths[0])
                 p1 = modJTT.get_P(lengths[1])
                 p01 = modJTT.get_P(node_dict[b[0][1]].length)
                 p11 = modJTT.get_P(node_dict[b[1][1]].length)
-            for k, v in anc_cols.items():   # going by site
-                map_state = v[mrca.label]  # get MAP state of MRCA
-                if map_state == "-":
-                    continue  # skip cases where mrca MAP is gap
-                nodes = [i for j in b for i in j]
-                states = [v[n] for n in nodes]
-                if "-" in states:
-                    continue  # skip cases where any MAPs are inferred as gaps
-                if args.site_frequencies:
-                    # set up model for site specific freqs
-                    modJTT = Discrete_model()
-                    modJTT.set_rate_JTT()
-                    modJTT.set_frequencies(site_freqs[k])
-                    with np.errstate(divide="raise"):
-                        # account for cases where 0 freqs cause problems
-                        try:
-                            modJTT.scale_rate_matrix()
-                        except FloatingPointError:
-                            continue
-                    if not args.rates:  # do these once and save time
-                        p0 = modJTT.get_P(lengths[0])
-                        p1 = modJTT.get_P(lengths[1])
-                        p01 = modJTT.get_P(node_dict[b[0][1]].length)
-                        p11 = modJTT.get_P(node_dict[b[1][1]].length)
-                # dict for probs
-                sites += 1
-                node_probs = {}
-                # probs for parents
-                map_array = map_state_array(map_state)
-                if args.rates:
-                    node_probs[b[0][0]] = np.matmul(map_array,
-                                                    modJTT.get_P(lengths[0],
-                                                                 rates_dict[k])
-                                                   )  #1x20
-                    node_probs[b[1][0]] = np.matmul(map_array,
-                                                    modJTT.get_P(lengths[1],
-                                                                 rates_dict[k])
-                                                   )  #1x20
-                else:
-                    node_probs[b[0][0]] = np.matmul(map_array, p0)
-                    node_probs[b[1][0]] = np.matmul(map_array, p1)
-                # conditional probs for children
-                conditionals_l = np.zeros((20,20))
-                conditionals_r = np.zeros((20,20))
-                for i in range(20):
-                    map_array = np.zeros(20)
-                    map_array[i] = 1.
-                    if args.rates:
-                        prob_l = np.matmul(map_array,
-                                           modJTT.get_P(node_dict[b[0]
-                                                                  [1]].length,
-                                                        rates_dict[k]))  # 1x20
-                        conditionals_l[i] = prob_l
-                        prob_r = np.matmul(map_array,
-                                           modJTT.get_P(node_dict[b[1]
-                                                                  [1]].length,
-                                                        rates_dict[k]))  # 1x20
-                        conditionals_r[i] = prob_r
-                    else:
-                        prob_l = np.matmul(map_array, p01)  # 1 x 20
-                        conditionals_l[i] = prob_l
-                        prob_r = np.matmul(map_array, p11)  # 1 x 20
-                        conditionals_r[i] = prob_r
-                        # conditionals now holds the probability of desc being 
-                        # in state j (col) given starting in state i (row)
-                for i in range(20):
-                    for j in range(20):
-                        for k in range(20):
-                            for l in range(20):
-                                if j == l and i != j and k != l:
-                                    # no restriction of i and k - sum over
-                                    # parallel and convergent
-                                    # print(f"{b[0][0]} is in {AA[i]}\n"
-                                    #       f"descendent {b[0][1]} probability"
-                                    #       f"of {AA[j]} given {b[0][0]} is in"
-                                    #       f" {AA[i]}\n"
-                                    #       f"{b[1][0]} is in {AA[k]}\n"
-                                    #       f"descendent {b[1][1]} probability"
-                                    #       f"of {AA[l]} given {b[1][0]} is in" 
-                                    #       f" {AA[k]}\n")
-                                    conv_prob_sum += (node_probs[b[0][0]][i] * 
-                                                      conditionals_l[i, j] * 
-                                                      node_probs[b[1][0]][k] *
-                                                      conditionals_r[k, l])
-                
+            # dict for probs
+            sites += 1
+            node_probs = {}
+            # probs for parents
+            map_array = map_state_array(map_state)
+            node_probs[b[0][0]] = np.matmul(map_array, p0)  #1x20
+            node_probs[b[1][0]] = np.matmul(map_array, p1)  #1x20
+            # conditional probs for children
+            conditionals_l = np.zeros((20,20))
+            conditionals_r = np.zeros((20,20))
+            for i in range(20):
+                map_array = np.zeros(20)
+                map_array[i] = 1.
+                prob_l = np.matmul(map_array, p01)  # 1x20
+                # if node_dict[b[0][1]].istip:
+                #     prob_l = (prob_l *
+                #                 map_state_array(v[node_dict[b[0][1]].label]))
+                conditionals_l[i] = prob_l
+                prob_r = np.matmul(map_array, p11)  # 1x20
+                # if node_dict[b[1][1]].istip:
+                #     prob_r = (prob_r *
+                #                 map_state_array(v[node_dict[b[1][1]].label]))
+                conditionals_r[i] = prob_r
+                # conditionals now holds the probability of desc being
+                # in state j (col) given starting in state i (row)
+                joint_probs_l = np.matmul(np.diag(node_probs[b[0][0]]),
+                                            conditionals_l)
+                joint_probs_r = np.matmul(np.diag(node_probs[b[1][0]]),
+                                            conditionals_r)
+            # if node_dict[b[1][1]].istip:
+            #     print(conditionals_r)
+            #     print(joint_probs_r)
+            for i in range(20):  # parent 1
+                for j in range(20):  # child 1
+                    if i != j:  # only bother enumerating if these are
+                                # different
+                        for k in range(20):  # parent 2
+                            for l in range(20):  # child 2
+                                if l != k and j == l:
+                                # print(f"Branch 1: {AA[i]} -> {AA[j]}")
+                                # print(f"Branch 2: {AA[k]} -> {AA[j]}")
+                                    # conv_prob_sum += (node_probs[b[0][0]][i] *
+                                    #                   conditionals_l[i, j] *
+                                    #                   node_probs[b[1][0]][k] *
+                                    #                   conditionals_r[k, l])
+                                    conv_prob_sum += (joint_probs_l[i, j] *
+                                                        joint_probs_r[k, l])
+                                elif l not in (k, j):
+                                    # div_prob_sum += (node_probs[b[0][0]][i] *
+                                    #                  conditionals_l[i, j] *
+                                    #                  node_probs[b[1][0]][k] *
+                                    #                  conditionals_r[k, l])
+                                    div_prob_sum += (joint_probs_l[i, j] *
+                                                     joint_probs_r[k, l])
+            # for i in range(20):
+            #     for j in range(20):
+            #         for k in range(20):
+            #             for l in range(20):
+            #                 if j == l and i != j and k != l:
+            #                     # no restriction of i and k - sum over
+            #                     # parallel and convergent
+            #                     # print(f"{b[0][0]} is in {AA[i]}\n"
+            #                     #       f"descendent {b[0][1]} probability"
+            #                     #       f"of {AA[j]} given {b[0][0]} is in"
+            #                     #       f" {AA[i]}\n"
+            #                     #       f"{b[1][0]} is in {AA[k]}\n"
+            #                     #       f"descendent {b[1][1]} probability"
+            #                     #       f"of {AA[l]} given {b[1][0]} is in"
+            #                     #       f" {AA[k]}\n")
+            #                     conv_prob_sum += (node_probs[b[0][0]][i] *
+            #                                       conditionals_l[i, j] *
+            #                                       node_probs[b[1][0]][k] *
+            #                                       conditionals_r[k, l])
+            #                 elif j != l and i != j and k != l:
+            #                     div_prob_sum += (node_probs[b[0][0]][i] *
+            #                                       conditionals_l[i, j] *
+            #                                       node_probs[b[1][0]][k] *
+            #                                       conditionals_r[k, l])
+
         print(b)
-        print(conv_prob_sum)
+        print(f"{conv_prob_sum}\t{div_prob_sum}")
         print(sites)
-
-
-                
-                
-                
-

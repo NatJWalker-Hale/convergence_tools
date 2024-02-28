@@ -44,7 +44,7 @@ class Discrete_model():
                 0.076748 0.051691 0.042645 0.051544 0.019803 0.040752 0.061830
                 0.073152 0.022944 0.053761 0.091904 0.058676 0.023826 0.040126
                 0.050901 0.068765 0.058565 0.014261 0.032102 0.066005"""
-    
+
         modstr = modstr.split("\n")
 
         ex = np.zeros(shape=(20, 20))
@@ -95,7 +95,7 @@ class Discrete_model():
     def get_P(self, brlen=0.1, rate=1.0):
         p = expm(self.Q*brlen*rate)
         return p
-    
+
     def calc_empirical_freqs(self, aln: dict):
         """takes a dictionary representing a multiple sequence alignment
         (key: header, value: sequence), and calculates state freqs"""
@@ -106,7 +106,7 @@ class Discrete_model():
         for v in aln.values():
             lens.append(len(v))
         if len(set(lens)) > 1:
-            sys.stderr.write(f"sequences are not aligned\n")
+            sys.stderr.write("sequences are not aligned\n")
             sys.exit()
         freq_dict = {}
         tot = 0
@@ -123,8 +123,8 @@ class Discrete_model():
                         freq_dict[state] += counts[state]
                     except KeyError:
                         freq_dict[state] = counts[state]
-                tot += sum([x[1] for x in Counter(v).items() 
-                            if x[0] in nucs])
+                tot += sum(x[1] for x in counts.items()
+                            if x[0] in nucs)
             elif 20 <= len(counts.keys()) <= 22:  # aa
                 if alph == "nuc":
                     sys.stderr.write("multiple alphabets detected\n")
@@ -135,8 +135,8 @@ class Discrete_model():
                         freq_dict[state] += counts[state]
                     except KeyError:
                         freq_dict[state] = counts[state]
-                tot += sum([x[1] for x in Counter(v).items() 
-                            if x[0] in aa])
+                tot += sum(x[1] for x in counts.items()
+                            if x[0] in aa)
             else:
                 sys.stderr.write("alphabet not recognised\n")
                 sys.exit()

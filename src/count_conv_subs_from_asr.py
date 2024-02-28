@@ -5,9 +5,9 @@
 
 import sys
 import argparse
-import tree_reader
 from itertools import combinations
 from collections import Counter
+import tree_reader
 
 
 def read_subs(path):
@@ -160,81 +160,3 @@ if __name__ == "__main__":
             div = 0
         branches = " ".join([",".join(i) for i in k])
         print(f"{order}\t{branches}\t{conv}\t{div}")
-
-            
-
-                
-
-
-    # allSubsPos = []
-    # for b in branchCombs:
-    #     if args.groups is not None:
-    #         contained = False
-    #         for g in args.groups:
-    #             g = [n for n in g.split(",")]
-    #             if set(chain.from_iterable(b)).issubset(set(g)):
-    #                 sys.stderr.write("skipping %s contained in %s\n"
-    #                                     % (b, g))
-    #                 contained = True
-    #         if contained:
-    #             continue
-    #     subsPos = []
-    #     for n in b:
-    #         subsPos.append(set([x[1] for x in subs[n]]))
-    #     subsInAll = set.intersection(*subsPos)
-    #     allSubsPos.append(subsInAll)
-
-    # allSubsPosUnion = sorted(list(set.union(*allSubsPos)))
-
-    # for pos in allSubsPosUnion:
-    #     endStates = []
-    #     count_dict = {}
-    #     for b in branches:
-    #         endStates += [s[2] for s in subs[b] if pos == s[1]]
-    #         if len(endStates) == 0:
-    #             continue
-    #     for b in branches:
-    #         count_dict[b] = {}
-    #         subsInPos = [s[0] + str(s[1]) + s[2] for s in subs[b]
-    #                         if pos == s[1]]
-    #         if len(subsInPos) == 0:
-    #             continue
-    #         # if args.groups is not None:
-    #         #     uniq = len(branches)
-    #         #     for g in args.groups:
-    #         #         g = [n for n in g.split(",")]
-    #         #         if set(chain.from_iterable(b)).issubset(set(g)):
-    #         #             uniq -= 1
-    #         #     if uniq < args.atleast:
-    #         #         print("Uniq less than at least")
-    #         #         continue
-    #         endState = [s[2] for s in subs[b] if pos == s[1]][0]
-    #         if endStates.count(endState) >= args.atleast:
-    #             """make changes here in future to add requirements of 2-,
-    #             3-way overlap etc."""
-    #             try:
-    #                 count_dict[b]["CONV"] += 1
-    #             except KeyError:
-    #                 count_dict[b]["CONV"] = 1
-    #         else:
-    #             try:
-    #                 count_dict[b]["COIN"] += 1
-    #             except KeyError:
-    #                 count_dict[b]["COIN"] = 1
-    # if args.nonconv:
-    #     for b in branches:
-    #         for s in subs[b]:
-    #             pos = s[1]
-    #             if pos not in allSubsPosUnion:
-    #                 try:
-    #                     count_dict[b]["NONC"] += 1
-    #                 except KeyError:
-    #                     count_dict[b]["NONC"] = 1
-    # # subsPos = []
-    # # for n in nodes:
-    # #     subsPos.append(set([x[1] for x in subs[n]]))
-
-    # # subsInAll = set.intersection(*subsPos)
-
-    # # print(subsInAll)
-    # print(count_dict)
