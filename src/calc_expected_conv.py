@@ -434,5 +434,5 @@ if __name__ == "__main__":
                    site_frequencies=site_freqs)
 
     print("branch_comb\tsites\tconv\tdiv")
-    for k, v in results.items():
-        print(f"{k}\t{v[0]}\t{v[1]}\t{v[2]}")
+    for comb, res in results.items():
+        print(f"{comb}\t{res[0]}\t{res[1]}\t{res[2]}")
