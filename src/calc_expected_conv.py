@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 
 
+"""Calculate expected convergence and divergence given a tree and some
+reconstructed states following Zou & Zhang (2015)"""
+
+
 import sys
 import argparse
 from collections import Counter
@@ -371,6 +375,9 @@ if __name__ == "__main__":
                         second column comma separated frequencies (20)")
     parser.add_argument("-r", "--rates", help="File containing estimated \
                         posterior mean rate for each site from PAML")
+    parser.add_argument("-d", "--divergent", help="Also calculate the \
+                        probability of divergent substitutions",
+                        action="store_true")
     parser.add_argument("-l", "--label", help="Print labelled tree and \
                         quit", action="store_true")
     args = parser.parse_args()
