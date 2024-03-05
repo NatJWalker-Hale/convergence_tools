@@ -140,6 +140,25 @@ def get_node_dict_from_tree(tree: Node) -> dict:
     return out
 
 
+def get_all_branches_labelled_tree(tree: Node) -> list[tuple]:
+    """take a node-labelled tree and returns all branches as a list of 2-tuples
+    of (parent-label, descendant-label)"""
+    out = []
+    for n in tree.iternodes(order="postorder"):
+        par = n.parent
+        if par is None:  # skip root
+            continue
+        if par.parent is None:  # skip children of root
+            continue
+        if None in (n.label, par.label):
+            sys.stderr.write("found node with no labels - this only works on "
+                            "labelled trees. Run tree.number_nodes() and "
+                            "retry\n")
+            sys.exit()
+        out.append((par.label, n.label))
+    return out
+
+
 def get_good_branch_combs(combs: list[tuple[tuple]],
                           tree: Node) -> list[tuple[tuple]]:
     """takes an input list of tuples of two tuples of length two (e.g.
@@ -162,20 +181,19 @@ def get_good_branch_combs(combs: list[tuple[tuple]],
             p = n.parent
             if p.parent is None:  # reach root without encountering
                 going = False
-            if p.label == ch2:  # right descendant is in parents
+            if p.label in (par2, ch2):  # right descendant is in parents
                 sys.stderr.write(f"skipping combination {c} as {c[1]} is "
                                  f"direct ancestor of {c[0]}\n")
                 remove = True
+                going = False
             else:
                 n = p
-
         n = node_dict[ch1]  # left descendant
         for n1 in n.iternodes():
             if n1.label == par2:  # right parent is in descendants
                 sys.stderr.write(f"skipping combination {c} as {c[1]} is "
                                  f"direct descendant of {c[0]}\n")
                 remove = True
-
         if not remove:
             out.append(c)
     return out
@@ -253,7 +271,7 @@ def get_path_length_root(tree: Node, node1: str):
 
 def main(combs: list[tuple[tuple]], tree: Node, model: Discrete_model,
          ancestor_columns: dict, rates: dict = None,
-         site_frequencies: dict = None) -> dict:
+         site_frequencies: dict = None, div = False) -> dict:
     """calculates expected convergence and divergence for a given tree and
     model, conditioning on ancestral states in ancestor_columns"""
     out = {}
@@ -340,9 +358,11 @@ def main(combs: list[tuple[tuple]], tree: Node, model: Discrete_model,
                     # print(f"Branch 2: {AA[k]} -> {AA[l]}")
                     conv_prob_sum += (joint_probs_l[i, j] *
                                       joint_probs_r[k, l])
-                elif i != j and l != k and j != l:
-                    div_prob_sum += (joint_probs_l[i, j] *
-                                     joint_probs_r[k, l])
+                if div:
+                    if i != j and l != k and j != l:
+                        div_prob_sum += (joint_probs_l[i, j] *
+                                        joint_probs_r[k, l])
+        print(f"{c}\t{sites}\t{conv_prob_sum:.4f}\t{div_prob_sum:.4f}")
         out[c] = [sites, conv_prob_sum, div_prob_sum]
     return out
 
@@ -360,6 +380,9 @@ if __name__ == "__main__":
     parser.add_argument("branches", help="space-separated parent-daughter \
                         comparisons in format parent,daughter (at least two)",
                         type=str, nargs="+")
+    parser.add_argument("-a", "--all", help="Calculate expectation for all \
+                        possible acceptable branch pairs, not just those in \
+                        [branches ...]", action="store_true")
     group = parser.add_mutually_exclusive_group(required = False)
     group.add_argument("-f", "--empirical_frequencies", help="Use \
                         frequencies calculated from extant sequences. \
@@ -424,7 +447,10 @@ if __name__ == "__main__":
     else:
         site_freqs = None
 
-    branches = [(x.split(",")[0], x.split(",")[1]) for x in args.branches]
+    if args.all:
+        branches = get_all_branches_labelled_tree(curroot)
+    else:
+        branches = [(x.split(",")[0], x.split(",")[1]) for x in args.branches]
     if len(branches) == 1:
         print("More than one branch required")
         sys.exit()
@@ -438,8 +464,8 @@ if __name__ == "__main__":
 
     results = main(combs=good_combs, tree=curroot, model=modJTT,
                    ancestor_columns=anc_cols, rates=rates_dict,
-                   site_frequencies=site_freqs)
+                   site_frequencies=site_freqs, div=args.divergent)
 
     print("branch_comb\tsites\tconv\tdiv")
     for comb, res in results.items():
-        print(f"{comb}\t{res[0]}\t{res[1]}\t{res[2]}")
+        print(f"{comb}\t{res[0]}\t{res[1]:.4f}\t{res[2]:.4f}")
