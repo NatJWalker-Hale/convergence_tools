@@ -134,7 +134,7 @@ if __name__ == "__main__":
                                                   branch_comb[1][1])
                 out_dict[branch_comb]["path_length"] = sum(lengths)
 
-    print("order\tbranches\tconv\tdiv")
+    print("order\tbranches\tconv\tdiv\tlength")
     for k, v in out_dict.items():
         order = len(k)
         try:

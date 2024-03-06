@@ -9,9 +9,22 @@ import sys
 import argparse
 import subprocess
 import numpy as np
+from collections import Counter
 from treenode import Node
 from parse_fasta import parse_fasta, parse_fasta_str
-from calc_expected_conv import 
+
+
+def calc_gene_frequencies(seq_dict: dict) -> np.array:
+    aa = ["A", "R", "N", "D", "C", "Q", "E", "G", "H", "I", "L", "K", "M", 
+              "F", "P", "S", "T", "W", "Y", "V"]
+    all = ""
+    tot = 0
+    for seq in seq_dict.values():
+        all += seq
+    counts = Counter(all)
+    tot = sum(x[1] for x in counts.items() if x[0] in aa)
+    freqs = np.zeros(20)
+    
 
 
 def parse_site_frequencies_file(inf: str) -> dict:

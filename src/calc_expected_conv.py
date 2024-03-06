@@ -362,8 +362,10 @@ def main(combs: list[tuple[tuple]], tree: Node, model: Discrete_model,
                     if i != j and l != k and j != l:
                         div_prob_sum += (joint_probs_l[i, j] *
                                         joint_probs_r[k, l])
-        print(f"{c}\t{sites}\t{conv_prob_sum:.4f}\t{div_prob_sum:.4f}")
-        out[c] = [sites, conv_prob_sum, div_prob_sum]
+        child_lengths, _ = get_path_length_mrca(tree, ch1, ch2)
+        sys.stderr.write(f"{c}\t{sites}\t{conv_prob_sum:.4f}\t"
+                         f"{div_prob_sum:.4f}\t{sum(child_lengths):.4f}\n")
+        out[c] = [sites, conv_prob_sum, div_prob_sum, sum(child_lengths)]
     return out
 
 
@@ -466,6 +468,8 @@ if __name__ == "__main__":
                    ancestor_columns=anc_cols, rates=rates_dict,
                    site_frequencies=site_freqs, div=args.divergent)
 
-    print("branch_comb\tsites\tconv\tdiv")
+    print("branch_comb\tsites\tconv\tdiv\tlength")
     for comb, res in results.items():
-        print(f"{comb}\t{res[0]}\t{res[1]:.4f}\t{res[2]:.4f}")
+        branches = " ".join([",".join(b) for b in comb])
+        print(f"{branches}\t{res[0]}\t{res[1]:.4f}\t{res[2]:.4f}\t"
+              f"{res[3]:.4f}")
