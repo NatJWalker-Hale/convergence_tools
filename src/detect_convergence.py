@@ -6,10 +6,10 @@ import sys
 import glob
 import argparse
 import subprocess
+from copy import deepcopy
 import pandas as pd
 import tree_reader
 import calc_topological
-from copy import deepcopy
 from parse_fasta import parse_fasta
 from label_for_diffsel import label_for_diffsel
 from label_for_tdg09 import label_for_tdg09

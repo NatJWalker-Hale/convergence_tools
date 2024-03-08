@@ -10,8 +10,8 @@ import argparse
 from collections import Counter
 from itertools import combinations, product
 import numpy as np
-import tree_reader
-from treenode import Node
+from newick import parse_from_file, to_string
+from phylo import Node, getMRCATraverse
 from parse_fasta import parse_fasta
 from discrete_models import Discrete_model
 from optimise_raxmlng import get_optimised_freqs
@@ -158,7 +158,7 @@ def get_all_branches_labelled_tree(tree: Node) -> list[tuple]:
         out.append((par.label, n.label))
     return out
 
-
+# refactored with Claude's assistance
 def get_good_branch_combs(combs: list[tuple[tuple]],
                           tree: Node) -> list[tuple[tuple]]:
     """takes an input list of tuples of two tuples of length two (e.g.
@@ -167,35 +167,29 @@ def get_good_branch_combs(combs: list[tuple[tuple]],
     which combinations to keep"""
     out = []
     node_dict = get_node_dict_from_tree(tree)
+    ancestors = {node: set(node.get_ancestors(True)) for node in
+                 node_dict.values()}
     for c in combs:
-        remove = False
-        par1, ch1, par2, ch2 = (x for i in c for x in i)
+        par1, ch1, par2, ch2 = (node_dict[x] for x in (x for i in c for x in i))
+
         if par1 == par2:  # sisters
             sys.stderr.write(f"skipping combination {c} as {c[0]} is "
                              f"sister to {c[1]}\n")
-            remove = True
-        # start arbitrarily with left parent
-        n = node_dict[par1]
-        going = True
-        while going:
-            p = n.parent
-            if p.parent is None:  # reach root without encountering
-                going = False
-            if p.label in (par2, ch2):  # right descendant is in parents
-                sys.stderr.write(f"skipping combination {c} as {c[1]} is "
-                                 f"direct ancestor of {c[0]}\n")
-                remove = True
-                going = False
-            else:
-                n = p
-        n = node_dict[ch1]  # left descendant
-        for n1 in n.iternodes():
-            if n1.label == par2:  # right parent is in descendants
-                sys.stderr.write(f"skipping combination {c} as {c[1]} is "
-                                 f"direct descendant of {c[0]}\n")
-                remove = True
-        if not remove:
-            out.append(c)
+            continue
+        # of course, if branch 1 is an ancestor of branch 2 then branch 2 is a
+        # descendant of branch 1 and vice versa
+        if ch1 in ancestors[par2]:  # direct ancestor
+            sys.stderr.write(f"skipping combination {c} as {c[0]} is "
+                             f"direct ancestor of {c[1]}\n")
+            continue
+
+        if ch2 in ancestors[par1]:
+            sys.stderr.write(f"skipping combination {c} as {c[0]} is "
+                             f"direct descendant of {c[1]}\n")
+            continue
+
+        out.append(c)
+
     return out
 
 
@@ -221,35 +215,17 @@ def map_state_array(aa_char: str) -> np.array:
     return array
 
 
-def get_path_length_mrca(tree: Node, node1: str, node2: str) -> tuple:
-    """returns the sum of the branch lengths between two labelled nodes and
-    their mrca"""
-    mrca = None
+def get_path_length_mrca(node1: Node, node2: Node) -> tuple:
+    """
+    for two nodes, returns a list of summed lengths between themselves and the
+    MRCA, not including the MRCA branch length
+    """
     lengths = []
-    for n in tree.iternodes():
-        if n.label == node1:
-            going = True
-            brlen = 0.
-            while going:
-                if node2 in [i.label for i in n.iternodes()]:  # node IS mrca
-                    going = False
-                    mrca = n
-                else:
-                    brlen += n.length
-                    n = n.parent
-    lengths.append(brlen)
-    for n in tree.iternodes():
-        if n.label == node2:
-            going = True
-            brlen = 0.
-            while going:
-                if node1 in [i.label for i in n.iternodes()]:  # node IS mrca
-                    going = False
-                    mrca = n
-                else:
-                    brlen += n.length
-                    n = n.parent
-    lengths.append(brlen)
+    mrca = getMRCATraverse(node1, node2)
+    lengths.append(sum([l.length for l in
+                        node1.get_ancestors(True, mrca)][:-1]))
+    lengths.append(sum([l.length for l in
+                        node2.get_ancestors(True, mrca)][:-1]))
     return lengths, mrca
 
 
@@ -269,18 +245,56 @@ def get_path_length_root(tree: Node, node1: str):
     return brlen
 
 
+def compute_transition_probs(model: Discrete_model, brlens: list[float],
+                             rate: float=1.0):
+    """
+    computes the four transition probability matrices necessary for joint
+    convergence probability calculation for two branches
+    """
+    p0 = model.get_P(brlens[0], rate)
+    p1 = model.get_P(brlens[1], rate)
+    p01 = model.get_P(brlens[2], rate)
+    p11 = model.get_P(brlens[3], rate)
+    return p0, p1, p01, p11
+
+
+def compute_transition_probs_site_freqs(frequencies: np.array,
+                                        brlens: list[float], rate: float=1.0):
+    """
+    computes the four transition probability matrices necessary for joint
+    convergence probability calculation for two branches, rescaling the model
+    matrix to use site-specific frequencies
+    """
+    model = Discrete_model()
+    model.set_rate_JTT()
+    model.set_frequencies(frequencies)
+    with np.errstate(divide="raise"):
+        # account for cases where 0 freqs cause problems
+        try:
+            model.scale_rate_matrix()
+        except FloatingPointError as exc:
+            raise FloatingPointError from exc
+    p0 = model.get_P(brlens[0], rate)
+    p1 = model.get_P(brlens[1], rate)
+    p01 = model.get_P(brlens[2], rate)
+    p11 = model.get_P(brlens[3], rate)
+    return p0, p1, p01, p11
+         
+
 def main(combs: list[tuple[tuple]], tree: Node, model: Discrete_model,
          ancestor_columns: dict, rates: dict = None,
          site_frequencies: dict = None, div = False) -> dict:
-    """calculates expected convergence and divergence for a given tree and
-    model, conditioning on ancestral states in ancestor_columns"""
+    """
+    calculates expected convergence and divergence for a given tree and
+    model, conditioning on ancestral states in ancestor_columns
+    """
     out = {}
     node_dict = get_node_dict_from_tree(tree)
     for c in combs:
         par1, ch1, par2, ch2 = (x for i in c for x in i)
         conv_prob_sum = 0.
         div_prob_sum = 0.
-        lengths, mrca = get_path_length_mrca(tree, par1, par2)
+        lengths, mrca = get_path_length_mrca(node_dict[par1], node_dict[par2])
         if mrca.label in (par1, par2):
             # if either of the nodes is the MRCA, we calculate probs for
             # this node by conditioning on the state one node back, to
@@ -288,13 +302,13 @@ def main(combs: list[tuple[tuple]], tree: Node, model: Discrete_model,
             lengths = [x + mrca.length for x in lengths]
             mrca = mrca.parent
         # get lengths between node and MRCA
+        lengths += [node_dict[x].length for x in (ch1, ch2)]
+        # add child lengths to lengths
         sites = 0
         if rates is None:  # do these once and save time
-            p0 = model.get_P(lengths[0])
-            p1 = model.get_P(lengths[1])
-            p01 = model.get_P(node_dict[ch1].length)
-            p11 = model.get_P(node_dict[ch2].length)
+            p0, p1, p01, p11 = compute_transition_probs(model, lengths)
         for pos, col in ancestor_columns.items():   # going by site
+            rate = 1.0
             map_state = col[mrca.label]  # get MAP state of MRCA
             if map_state == "-":
                 continue  # skip cases where mrca MAP is gap
@@ -304,30 +318,18 @@ def main(combs: list[tuple[tuple]], tree: Node, model: Discrete_model,
                 continue  # skip cases where any MAPs are inferred as gaps
             if site_frequencies is not None:
                 # set up model for site specific freqs
-                model = Discrete_model()
-                model.set_rate_JTT()
-                model.set_frequencies(site_frequencies[pos])
-                with np.errstate(divide="raise"):
-                    # account for cases where 0 freqs cause problems
-                    try:
-                        model.scale_rate_matrix()
-                    except FloatingPointError:
-                        sys.stderr.write(f"skipping site {pos} where "
-                                         f"sparse frequencies caused a "
-                                         f"problem\n")
-                        continue
-            if rates is not None:
-                p0 = model.get_P(lengths[0], rates[pos])
-                p1 = model.get_P(lengths[1], rates[pos])
-                p01 = model.get_P(node_dict[ch1].length,
-                                  rates[pos])
-                p11 = model.get_P(node_dict[ch2].length,
-                                  rates[pos])
+                if rates is not None:
+                    rate = rates[pos]
+                p0, p1, p01, p11 = compute_transition_probs_site_freqs(
+                    frequencies=site_frequencies[pos], brlens=lengths,
+                    rate=rate
+                    )
             else:
-                p0 = model.get_P(lengths[0])
-                p1 = model.get_P(lengths[1])
-                p01 = model.get_P(node_dict[ch1].length)
-                p11 = model.get_P(node_dict[ch2].length)
+                if rates is not None:
+                    rate = rates[pos]
+                    p0, p1, p01, p11 = compute_transition_probs(model,
+                                                                brlens=lengths,
+                                                                rate=rate)
             # dict for probs
             sites += 1
             node_probs = {}
@@ -362,7 +364,8 @@ def main(combs: list[tuple[tuple]], tree: Node, model: Discrete_model,
                     if i != j and l != k and j != l:
                         div_prob_sum += (joint_probs_l[i, j] *
                                         joint_probs_r[k, l])
-        child_lengths, _ = get_path_length_mrca(tree, ch1, ch2)
+        child_lengths, _ = get_path_length_mrca(node_dict[ch1],
+                                                node_dict[ch2])
         sys.stderr.write(f"{c}\t{sites}\t{conv_prob_sum:.4f}\t"
                          f"{div_prob_sum:.4f}\t{sum(child_lengths):.4f}\n")
         out[c] = [sites, conv_prob_sum, div_prob_sum, sum(child_lengths)]
@@ -409,15 +412,20 @@ if __name__ == "__main__":
     if args.site_frequencies_file:
         args.site_frequencies = True
 
-    curroot = next(tree_reader.read_tree_file_iter(args.tree))
+    curroot = parse_from_file(args.tree)
 
     curroot.number_nodes()
     # make dict of tree nodes indexed by label
     nodes = get_node_dict_from_tree(curroot)
 
     if args.label:
-        print(f"{curroot.get_newick_repr(False, False)};")
+        print(f"{to_string(curroot)};")
         sys.exit()
+
+    # print(get_path_length_mrca(curroot, "N224", "N172"))
+    # print(get_path_length_mrca_new(nodes["N224"], nodes["N172"]))
+    # print([l.label for l in nodes["N224"].get_ancestors(True, nodes["N171"])])
+    # sys.exit()
 
     if args.rates:
         rates_dict = parse_paml_rates(args.rates)

@@ -40,3 +40,9 @@ def get_fasta_str(seq_dict: dict):
     for header, seq in seq_dict.items():
         ret += f"{header}\n{seq}\n"
     return ret
+
+
+def write_fasta(seq_dict: dict, out_file: str):
+    """writes a fasta file from sequence dictionary"""
+    with open(out_file, "w", encoding="utf-8") as outf:
+        outf.write(get_fasta_str(seq_dict=seq_dict))
