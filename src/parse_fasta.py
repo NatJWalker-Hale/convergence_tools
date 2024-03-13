@@ -21,7 +21,7 @@ def parse_fasta_str(fa_str: str):
     """Given a str representing the content of a FASTA-formatted file, return
     an iterator yielding a (name, sequence tuple)"""
     name = sequence = ""
-    for line in fa_str.readlines():
+    for line in fa_str.splitlines():
         line = line.strip()
         if line.startswith(">"):
             if name:
@@ -38,7 +38,7 @@ def get_fasta_str(seq_dict: dict):
     """writes sequence dictionary to multiline string"""
     ret = ""
     for header, seq in seq_dict.items():
-        ret += f"{header}\n{seq}\n"
+        ret += f">{header}\n{seq}\n"
     return ret
 
 
@@ -46,3 +46,18 @@ def write_fasta(seq_dict: dict, out_file: str):
     """writes a fasta file from sequence dictionary"""
     with open(out_file, "w", encoding="utf-8") as outf:
         outf.write(get_fasta_str(seq_dict=seq_dict))
+
+
+if __name__ == "__main__":
+    s = """
+        >1
+        A
+        >2
+        A
+        >3
+        A
+        >4
+        T
+        """
+    seqs = dict(parse_fasta_str(s))
+    print(get_fasta_str(seqs))

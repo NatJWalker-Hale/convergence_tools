@@ -11,10 +11,23 @@ import subprocess
 from collections import Counter
 import numpy as np
 from phylo import Node
-from parse_fasta import parse_fasta, parse_fasta_str, write_fasta
+from parse_phylip import parse_phylip_str
+from calc_expected_conv import get_columns, get_site_specific_frequencies
+
+
+def check_aligned(seq_dict: dict) -> bool:
+    """
+    checks if sequences in a sequence dictionary are the same length
+    """
+    if len(set(len(s) for s in seq_dict.values())) > 1:
+        return False
+    return True
 
 
 def calc_gene_frequencies(seq_dict: dict) -> np.array:
+    """
+    calculates the frequencies of amino acid character states in sequence dictionary, ignoring gaps
+    """
     aas = "ARNDCQEGHILKMFPSTWYV"
     counts = Counter(char for seq in seq_dict.values() for char in seq if
                      char in set(aas))
@@ -83,7 +96,7 @@ def sim_sites(treef: str, frequencies: np.array, model: str="JTT",
     print(subprocess.list2cmdline(cmd))
     res = subprocess.run(cmd, shell=False, capture_output=True, text=True,
                          check=False)
-    out = dict(parse_fasta_str(res.stdout))
+    out = dict(parse_phylip_str(res.stdout))
     return out
 
 
@@ -137,4 +150,23 @@ def sim_alignment_gene_freqs(tree: Node, seq_dict: dict, model: str="JTT",
     return sim_aln
 
 
-def sim_alignment_site_freqs(tree: Node)
+def sim_alignment_site_freqs(tree: Node, seq_dict: dict, model: str="JTT",
+                             gamma: tuple[int,float]=None, use_anc: int=None) -> dict:
+    """
+    simulates an alignment with length matching the input alignment and optionally starting from a
+    specified sequence as ancestor, using site-specific frequencies for each site. Returns a
+    sequence dictionary {header: sequence}
+    """
+    columns = get_columns(seq_dict)
+    site_freqs = get_site_specific_frequencies(columns)
+    ancs = {n.label: "" for n in tree.iternodes() if not n.istip}
+    out = ancs | {header: "" for header in seq_dict}
+    for pos, site in columns.items():
+        if use_anc is not None:
+            write_seq_gen_input(tree, site)
+            sim = sim_sites(treef="seq_gen_input.txt", frequencies=site_freqs[pos],
+                            model=model, gamma=gamma, use_anc=use_anc)
+            
+            out = concat_seqs(out, sim)
+        
+        
