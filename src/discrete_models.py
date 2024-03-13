@@ -83,7 +83,7 @@ class Discrete_model():
     def scale_rate_matrix(self):
         bigPi = np.diag(self.freqs)
 
-        q_unscaled = np.matmul(self.R, bigPi)
+        q_unscaled = self.R @ bigPi
 
         for i in range(20):
             q_unscaled[i, i] = -sum(q_unscaled[i])

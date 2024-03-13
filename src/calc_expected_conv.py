@@ -8,7 +8,7 @@ reconstructed states following Zou & Zhang (2015)"""
 import sys
 import argparse
 from collections import Counter
-from itertools import combinations, product
+from itertools import combinations
 import numpy as np
 from newick import parse_from_file, to_string
 from phylo import Node, getMRCATraverse
@@ -323,27 +323,27 @@ def main(combs: list[tuple[tuple]], tree: Node, model: Discrete_model,
                                                                 rate=rate)
             # dict for probs
             sites += 1
-            node_probs = {}
             # probs for parents
             map_array = map_state_array(map_state)
-            node_probs[par1] = np.matmul(map_array, p0)  #1x20
-            node_probs[par2] = np.matmul(map_array, p1)  #1x20
+            par1_probs = np.diag(map_array @ p0)  #1x20
+            par2_probs = np.diag(map_array @ p1)  #1x20
             # conditional probs for children
-            conditionals_l = np.zeros((20,20))
-            conditionals_r = np.zeros((20,20))
-            for i in range(20):
-                map_array = np.zeros(20)
-                map_array[i] = 1.
-                prob_l = np.matmul(map_array, p01)  # 1x20
-                conditionals_l[i] = prob_l
-                prob_r = np.matmul(map_array, p11)  # 1x20
-                conditionals_r[i] = prob_r
-                # conditionals now holds the probability of desc being
-                # in state j (col) given starting in state i (row)
-            joint_probs_l = np.matmul(np.diag(node_probs[par1]),
-                                        conditionals_l)
-            joint_probs_r = np.matmul(np.diag(node_probs[par2]),
-                                        conditionals_r)
+            # conditionals_l = np.zeros((20,20))
+            # conditionals_r = np.zeros((20,20))
+            idmat = np.eye(20)
+            conditionals_l = idmat @ p01
+            conditionals_r = idmat @ p11
+            # for i in range(20):
+            #     map_array = np.zeros(20)
+            #     map_array[i] = 1.
+            #     prob_l = np.matmul(map_array, p01)  # 1x20
+            #     conditionals_l[i] = prob_l
+            #     prob_r = np.matmul(map_array, p11)  # 1x20
+            #     conditionals_r[i] = prob_r
+            #     # conditionals now holds the probability of desc being
+            #     # in state j (col) given starting in state i (row)
+            joint_probs_l = par1_probs @ conditionals_l
+            joint_probs_r = par2_probs @ conditionals_r
             # for perm in product(range(20), repeat=4):
             #     i, j, k, l = perm
             #     if i != j and k != l and j == l:
@@ -377,7 +377,7 @@ def main(combs: list[tuple[tuple]], tree: Node, model: Discrete_model,
             if div:
                 cond2 = np.logical_and.reduce([ids[:, 0] != ids[:, 1],
                                                ids[:, 2] != ids[:, 3],
-                                               ids[:, 1] != ids[:, 3]])         
+                                               ids[:, 1] != ids[:, 3]])     
                 div_prob_sum += np.sum(joint_probs_l[ids[cond2, 0], ids[cond2, 1]] *
                                        joint_probs_r[ids[cond2, 2], ids[cond2, 3]])
             # this numpy approach provides _dramatic_ speedups
