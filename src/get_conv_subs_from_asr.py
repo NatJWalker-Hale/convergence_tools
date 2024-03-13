@@ -103,7 +103,7 @@ if __name__ == "__main__":
         inNodes = [(x.split(",")[0], x.split(",")[1]) for x in args.isin]
         allSubsPos = []
         for b in inNodes:
-            allSubsPos.append(set([x[1] for x in subs[b]]))
+            allSubsPos.append({x[1] for x in subs[b]})
         allSubsPosUnion = sorted(list(set.union(*allSubsPos)))
         nodes = inNodes
     elif args.isin and args.notin:

@@ -2,10 +2,10 @@
 
 
 import sys
-import numpy as np
 from collections import Counter
+import numpy as np
+from scipy.linalg import expm
 from parse_fasta import parse_fasta
-from scipy.linalg import expm, logm
 
 
 class Discrete_model():
@@ -93,61 +93,51 @@ class Discrete_model():
         self.Q = q
 
     def get_P(self, brlen=0.1, rate=1.0):
-        p = expm(self.Q*brlen*rate)
+        p = expm(self.Q * brlen * rate)
         return p
 
     def calc_empirical_freqs(self, aln: dict):
-        """takes a dictionary representing a multiple sequence alignment
-        (key: header, value: sequence), and calculates state freqs"""
-        aa = ["A", "R", "N", "D", "C", "Q", "E", "G", "H", "I", "L", "K", "M", 
-              "F", "P", "S", "T", "W", "Y", "V"]
-        nucs = ["A", "C", "G", "T"]
-        lens = []
-        for v in aln.values():
-            lens.append(len(v))
-        if len(set(lens)) > 1:
-            sys.stderr.write("sequences are not aligned\n")
-            sys.exit()
-        freq_dict = {}
-        tot = 0
-        alph = ""
-        for v in aln.values():
-            counts = Counter(v)
-            if 4 <= len(counts.keys()) <= 16:  # nucs
-                if alph == "aa":
-                    sys.stderr.write("multiple alphabets detected\n")
-                    sys.exit()
-                alph = "nuc"
-                for state in nucs:
-                    try:
-                        freq_dict[state] += counts[state]
-                    except KeyError:
-                        freq_dict[state] = counts[state]
-                tot += sum(x[1] for x in counts.items()
-                            if x[0] in nucs)
-            elif 20 <= len(counts.keys()) <= 22:  # aa
-                if alph == "nuc":
-                    sys.stderr.write("multiple alphabets detected\n")
-                    sys.exit()
-                alph = "aa"
-                for state in aa:
-                    try:
-                        freq_dict[state] += counts[state]
-                    except KeyError:
-                        freq_dict[state] = counts[state]
-                tot += sum(x[1] for x in counts.items()
-                            if x[0] in aa)
-            else:
-                sys.stderr.write("alphabet not recognised\n")
-                sys.exit()
-        freqs = []
-        if alph == "nuc":
-            for state in nucs:
-                freqs.append(freq_dict[state] / tot)
-        else:
-            for state in aa:
-                freqs.append(freq_dict[state] / tot)
-        self.emfreqs = np.array(freqs)
+        """
+        takes a dictionary representing a multiple sequence alignment
+        (key: header, value: sequence), and calculates state freqs
+        """
+        if len(set(len(v) for v in aln.values())) > 1:
+            raise ValueError("sequences are not aligned")
+        alph = set(check_alphabet(seq) for seq in aln.values())
+        if len(alph) > 1:
+            raise ValueError("multiple alphabets detected")
+        alph = list(alph)[0]
+        self.alphabet = alph
+        states = get_states(alph)
+        counts = Counter(char for seq in aln.values() for char in seq if
+                         char in set(states))
+        tot = sum(counts.values())
+        frequencies = np.fromiter((counts[s] for s in states), dtype=float) / tot
+        self.emfreqs = frequencies
+
+
+def check_alphabet(sequence: str) -> str:
+    """
+    checks if an input sequence is nuc, aa, or other (returns mult)
+    """
+    aas = "ARNDCQEGHILKMFPSTWYV-.X"
+    nucs = "ACGTURYSWKMBDHVN-."
+    if len(set(sequence).union(set(nucs))) <= len(set(nucs)):
+        return "nuc"
+    if len(set(sequence).union(set(aas))) <= len(set(aas)):
+        return "aa"
+    return "mult"
+
+
+def get_states(alphabet: str) -> str:
+    """
+    returns a string of states for a given alphabet
+    """
+    match alphabet:
+        case "aa":
+            return "ARNDCQEGHILKMFPSTWYV"
+        case "nuc":
+            return "ACGT"
 
 
 if __name__ == "__main__":
@@ -162,12 +152,6 @@ if __name__ == "__main__":
     # mod.set_rate_JTT()
     # print(expm(logm(mod.R)*0.1))
 
-    seqs = dict([x for x in parse_fasta("DODAa_combined_no_og_strict_for_synth.cds.fa.nostop.name.noF.best.fas.trans")])
+    seqs = dict(parse_fasta("DODAa_combined_no_og_strict_for_synth.cds.fa.nostop.name.noF.best.fas.trans"))
     mod.calc_empirical_freqs(seqs)
-    # print(mod.emfreqs)
-
-    mod = Discrete_model()
-    mod.set_rate_JTT()
-    mod.set_frequencies(np.array([0., 0., 0., 0., 0., 0., 0., 0., 1., 0., 0.,
-                                  0., 0., 0., 0., 0., 0., 0., 0., 0.]))
-    mod.scale_rate_matrix()
+    print(mod.emfreqs)

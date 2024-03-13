@@ -32,11 +32,9 @@ def get_seq_dict_from_tree(tree: Node, seq_dict: dict) -> dict:
         if n.istip:
             try:
                 out[n.label] = seq_dict[n.label]
-            except KeyError:
-                sys.stderr.write(f"{n.label} not in provided FASTA - "
-                                    f"extant sequences need to be "
-                                    f"included\n")
-                sys.exit()
+            except KeyError as e:
+                raise KeyError(f"{n.label} not in provided FASTA - extant "
+                               f"sequences need to be included") from e
     return out
 
 
@@ -63,13 +61,9 @@ def get_site_specific_frequencies(col_dict: dict) -> dict:
     site-specific frequencies"""
     freq_dict = {}  # key is pos, value is np array of freqs
     for pos, column in col_dict.items():
-        freqs = []
-        tot = 0
-        counts = Counter([c for c in column.values()])
-        tot += sum(x[1] for x in counts.items() if x[0] in AA)
-        for state in AA:
-            freqs.append(counts[state] / tot)
-        freqs = np.array(freqs)
+        counts = Counter(c for c in column.values() if c in set(AA))
+        tot += sum(counts.values())
+        freqs = np.fromiter((counts[char] for char in AA), dtype=float) / tot
         freq_dict[pos] = freqs
     return freq_dict
 
@@ -132,11 +126,9 @@ def get_node_dict_from_tree(tree: Node) -> dict:
     out = {}
     for n in tree.iternodes():
         if not n.istip and n.label is None:
-            sys.stderr.write("encountered internal node with no label. Might "
+            raise ValueError("encountered internal node with no label. Might "
                              "want to run tree.number_nodes() first?\n")
-            sys.exit()
-        else:
-            out[n.label] = n
+        out[n.label] = n
     return out
 
 
@@ -151,10 +143,9 @@ def get_all_branches_labelled_tree(tree: Node) -> list[tuple]:
         if par.parent is None:  # skip children of root
             continue
         if None in (n.label, par.label):
-            sys.stderr.write("found node with no labels - this only works on "
-                            "labelled trees. Run tree.number_nodes() and "
-                            "retry\n")
-            sys.exit()
+            raise ValueError("found node with no labels - this only works on "
+                             "labelled trees. Run tree.number_nodes() and "
+                             "retry")
         out.append((par.label, n.label))
     return out
 
@@ -273,13 +264,13 @@ def compute_transition_probs_site_freqs(frequencies: np.array,
         try:
             model.scale_rate_matrix()
         except FloatingPointError as exc:
-            raise FloatingPointError from exc
+            raise FloatingPointError("sparse frequencies") from exc
     p0 = model.get_P(brlens[0], rate)
     p1 = model.get_P(brlens[1], rate)
     p01 = model.get_P(brlens[2], rate)
     p11 = model.get_P(brlens[3], rate)
     return p0, p1, p01, p11
-         
+
 
 def main(combs: list[tuple[tuple]], tree: Node, model: Discrete_model,
          ancestor_columns: dict, rates: dict = None,
@@ -353,17 +344,43 @@ def main(combs: list[tuple[tuple]], tree: Node, model: Discrete_model,
                                         conditionals_l)
             joint_probs_r = np.matmul(np.diag(node_probs[par2]),
                                         conditionals_r)
-            for perm in product(range(20), repeat=4):
-                i, j, k, l = perm
-                if i != j and k != l and j == l:
-                    # print(f"Branch 1: {AA[i]} -> {AA[j]}")
-                    # print(f"Branch 2: {AA[k]} -> {AA[l]}")
-                    conv_prob_sum += (joint_probs_l[i, j] *
-                                      joint_probs_r[k, l])
-                if div:
-                    if i != j and l != k and j != l:
-                        div_prob_sum += (joint_probs_l[i, j] *
-                                        joint_probs_r[k, l])
+            # for perm in product(range(20), repeat=4):
+            #     i, j, k, l = perm
+            #     if i != j and k != l and j == l:
+            #         # print(f"Branch 1: {AA[i]} -> {AA[j]}")
+            #         # print(f"Branch 2: {AA[k]} -> {AA[l]}")
+            #         conv_prob_sum += (joint_probs_l[i, j] *
+            #                           joint_probs_r[k, l])
+            #     if div:
+            #         if i != j and l != k and j != l:
+            #             div_prob_sum += (joint_probs_l[i, j] *
+            #                             joint_probs_r[k, l])
+            # help from claude to figure out meshgrid
+            ids = np.array(np.meshgrid(*[np.arange(20)] * 4, indexing='ij')).reshape(4, -1).T
+            # ids.shape: (160000, 4)
+            cond1 = np.logical_and.reduce([ids[:, 0] != ids[:, 1],
+                                           ids[:, 2] != ids[:, 3],
+                                           ids[:, 1] == ids[:, 3]])
+            # cond1.shape: (160000,)
+            # np.nonzero(cond1)[0].shape: (7220,)
+            # that is, the 7220 cases satisfying the constraint (i != j and k != l and i==l)
+            # here we are getting the logical vectors corresponding to conditions specified
+            # in the three-way conditional statement. cond1 then corresponds to which entries
+            # in ids satisfy the requirement
+            conv_prob_sum += np.sum(joint_probs_l[ids[cond1, 0], ids[cond1, 1]] *
+                                    joint_probs_r[ids[cond1, 2], ids[cond1, 3]])
+            # by indexing by ids[cond1, 0], we are getting the rows of joint_probs_l that
+            # match the constraint for each branch's states, vectorised
+            # so that in the first contribution, we are indexing
+            # joint_probs_l[0, 1] * joint_probs_r[0, 1], which is the joint probability of
+            # convergent substitutions from AA[0] (A) to AA[1] (R)
+            if div:
+                cond2 = np.logical_and.reduce([ids[:, 0] != ids[:, 1],
+                                               ids[:, 2] != ids[:, 3],
+                                               ids[:, 1] != ids[:, 3]])         
+                div_prob_sum += np.sum(joint_probs_l[ids[cond2, 0], ids[cond2, 1]] *
+                                       joint_probs_r[ids[cond2, 2], ids[cond2, 3]])
+            # this numpy approach provides _dramatic_ speedups
         child_lengths, _ = get_path_length_mrca(node_dict[ch1],
                                                 node_dict[ch2])
         sys.stderr.write(f"{c}\t{sites}\t{conv_prob_sum:.4f}\t"
@@ -462,8 +479,8 @@ if __name__ == "__main__":
     else:
         branches = [(x.split(",")[0], x.split(",")[1]) for x in args.branches]
     if len(branches) == 1:
-        print("More than one branch required")
-        sys.exit()
+        sys.stderr.write("More than one branch required\n")
+        sys.exit(1)
 
     if len(branches) == 2:
         branch_combs = [tuple(branches)]

@@ -279,6 +279,24 @@ class Node:
             if i != self:
                 sisters.append(i)
         return sisters
+    
+    def to_string(self, brlen=True):
+        if not self.istip:
+            node_str = (f"({','.join([child.to_string(brlen) for child in self.children])})"
+                        f"{self.label or ''}")
+        else:
+            node_str = f"{self.label}"
+
+        if self.length is not None:
+            if brlen:
+                length_str = f"{self.length}"
+            else:
+                length_str = ""
+        else:
+            length_str = ""
+
+        s = f"{node_str}{length_str}"
+        return s
 
 def node2size(node, d=None):
     "map node and descendants to number of descendant tips"

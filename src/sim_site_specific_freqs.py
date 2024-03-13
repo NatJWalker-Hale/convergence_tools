@@ -8,38 +8,37 @@ simulate single sites and concatenate"""
 import sys
 import argparse
 import subprocess
-import numpy as np
 from collections import Counter
-from treenode import Node
-from parse_fasta import parse_fasta, parse_fasta_str
+import numpy as np
+from phylo import Node
+from parse_fasta import parse_fasta, parse_fasta_str, write_fasta
 
 
 def calc_gene_frequencies(seq_dict: dict) -> np.array:
-    aa = ["A", "R", "N", "D", "C", "Q", "E", "G", "H", "I", "L", "K", "M", 
-              "F", "P", "S", "T", "W", "Y", "V"]
-    all = ""
-    tot = 0
-    for seq in seq_dict.values():
-        all += seq
-    counts = Counter(all)
-    tot = sum(x[1] for x in counts.items() if x[0] in aa)
-    freqs = np.zeros(20)
-    
+    aas = "ARNDCQEGHILKMFPSTWYV"
+    counts = Counter(char for seq in seq_dict.values() for char in seq if
+                     char in set(aas))
+    tot = sum(counts.values())
+    frequencies = np.fromiter((counts[aa] for aa in aas), dtype=float) / tot
+    return frequencies
 
 
 def parse_site_frequencies_file(inf: str) -> dict:
-    """parse a TSV of pos\tfreqs, where freqs is comma-separated"""
-    freqs = {}
+    """
+    parse a TSV of pos\tfreqs, where freqs is comma-separated
+    """
+    frequencies = {}
     with open(inf, "r", encoding="utf-8") as sff:
         for line in sff:
             line = line.strip().split("\t")
-            freqs[int(line[0])] = np.array([float(x) for
-                                            x in line[1].split(",")])
-    return freqs
+            frequencies[int(line[0])] = np.fromiter(line[1].split(","),
+                                                    dtype=float)
+    return frequencies
 
 
-def sim_sites(treef: str, freqs: np.array, model:str="JTT", use_anc:int=None,
-             rate:float=1.0, sites:int=1) -> dict:
+def sim_sites(treef: str, frequencies: np.array, model: str="JTT",
+              gamma: tuple[int,float]=None, use_anc: int=None, rate: float=1.0,
+              sites: int=1) -> dict:
     """
     Simulates a single site with seq-gen given a treefile, which may
     optionally include sequences to serve as ancestral state, in which case
@@ -52,13 +51,13 @@ def sim_sites(treef: str, freqs: np.array, model:str="JTT", use_anc:int=None,
     (taxon1:0.1,taxon2:0.1);
 
     rate information (e.g. from PAML posterior mean rates) can be incorporated
-    using a branch length scalar
+    using a branch length scalar, or (for sites > 1) by using seq-gen directly,
+    in which case arg gamma is a tuple of (ncat,alpha).
     """
     models = ["JTT", "WAG", "PAM", "BLOSUM", "MTREV", "CPREV45",
               "MTART", "LG", "GENERAL"]
     if model not in models:
-        sys.stderr.write(f"{model} not in {models}\n")
-        sys.exit()
+        raise ValueError(f"{model} not in {models}")
     cmd = [
             "seq-gen",
             "-l",
@@ -66,14 +65,20 @@ def sim_sites(treef: str, freqs: np.array, model:str="JTT", use_anc:int=None,
             "-m"
             f"{model}",
             "-f",
-            f"{' '.join([str(x) for x in freqs])}"
+            f"{' '.join([str(x) for x in frequencies])}"
             "-of",
             "-wa"
         ]
     if use_anc is not None:
         cmd += ["-k", f"{use_anc}"]
     if rate != 1.0:
+        if gamma is not None:
+            raise ValueError("only one of rate or gamma allowed")
         cmd += ["-s", f"{rate}"]
+    if gamma is not None:
+        if rate != 1.0:
+            raise ValueError("only one of rate or gamma allowed")
+        cmd += ["-g", f"{gamma[0]}", "-a", f"{gamma[1]}"]
     cmd += [treef]
     print(subprocess.list2cmdline(cmd))
     res = subprocess.run(cmd, shell=False, capture_output=True, text=True,
@@ -83,8 +88,10 @@ def sim_sites(treef: str, freqs: np.array, model:str="JTT", use_anc:int=None,
 
 
 def concat_seqs(seq_dict1: dict, seq_dict2: dict) -> dict:
-    """concatenate contents of two dictionaries with matching keys into a
-    third"""
+    """
+    concatenate contents of two dictionaries with matching keys into a
+    third
+    """
     out = {}
     for header, seq in seq_dict1.items():
         try:
@@ -96,16 +103,38 @@ def concat_seqs(seq_dict1: dict, seq_dict2: dict) -> dict:
 
 
 def write_seq_gen_input(tree: Node, seq_dict:dict=None):
-    """write input tree (and optionally, sequence) file for seq-gen"""
+    """
+    write input tree (and optionally, sequence) file for seq-gen
+    """
     with open("seq_gen_input.txt", "w", encoding="utf-8") as outf:
         if seq_dict is not None:
             outf.write(f"{len(seq_dict)} {len(seq_dict.values()[0])}\n")
             for header, seq in seq.items():
                 outf.write(f"{header} {seq}\n")
             outf.write("1\n")
-        outf.write(f"{tree.get_newick_repr(showbl=True, shownum=False)};")
+        outf.write(f"{tree.to_string()};")
 
 
-def sim_alignment_gene_freqs(tree: Node, seq_dict:dict,
-                             freqs=np.array, use_anc:int=None) -> dict:
-    
+def sim_alignment_gene_freqs(tree: Node, seq_dict: dict, model: str="JTT",
+                             gamma: tuple[int,float]=None,
+                             use_anc: int=None) -> dict:
+    """
+    simulates an alignment with length matching the input alignment and 
+    optionally starting from a specified sequence as ancestor. Returns a
+    sequence dictionary {header: sequence}
+    """
+    sites = len(seq_dict.values[0])
+    freqs = calc_gene_frequencies(seq_dict)
+    if use_anc is not None:
+        write_seq_gen_input(tree, seq_dict)
+        sim_aln = sim_sites(treef="seq_gen_input.txt", frequencies=freqs,
+                            model=model, gamma=gamma, use_anc=use_anc,
+                            sites=sites)
+    else:
+        write_seq_gen_input(tree)
+        sim_aln = sim_sites(treef="seq_gen_input.txt", frequencies=freqs,
+                            model=model, gamma=gamma, sites=sites)
+    return sim_aln
+
+
+def sim_alignment_site_freqs(tree: Node)

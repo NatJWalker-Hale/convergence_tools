@@ -167,8 +167,8 @@ if __name__ == "__main__":
     s = "(Nematostella_vectensis@146487:0.28570255971561625552,((Bargmannia@124461:0.11671371999896994198,(Nanomia@82407:0.02229037752330314398,(Frillagalma@103872:0.03352004060787890788,Agalma_elegans@38387:0.00723798292127085779):0.01418728724518653582):0.07522769713546764714):0.10356415483616157602,Clytia_hemisphaerica@165314:0.07583460439008869736):0.06930854841339750827,Hydra_magnipapillata@6480:0.08755522366843263016):0.0;"
     #s = "(a,b,c,d,e,f,g);"
     n = parse(s)
-    print
     #print ascii.render(n)
     print(s)
     print(to_string(n))
+    print(n.to_string())
     #print n.next.back.label
