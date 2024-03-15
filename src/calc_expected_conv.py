@@ -7,21 +7,13 @@ reconstructed states following Zou & Zhang (2015)"""
 
 import sys
 import argparse
-from collections import Counter
 from itertools import combinations
 import numpy as np
-from newick import parse_from_file, to_string
+import sequence as sq
+from newick import parse_from_file
 from phylo import Node, getMRCATraverse
-from parse_fasta import parse_fasta
 from discrete_models import Discrete_model
 from optimise_raxmlng import get_optimised_freqs
-
-
-AAIDX = {"A": 0, "R": 1, "N": 2, "D": 3, "C": 4, "Q": 5, "E": 6, "G": 7,
-         "H": 8, "I": 9, "L": 10, "K": 11, "M": 12, "F": 13, "P": 14, "S": 15,
-         "T": 16, "W": 17, "Y": 18, "V": 19}
-AA = ['A', 'R', 'N', 'D', 'C', 'Q', 'E', 'G', 'H', 'I', 'L', 'K', 'M', 'F',
-      'P', 'S', 'T', 'W', 'Y', 'V']
 
 
 def get_seq_dict_from_tree(tree: Node, seq_dict: dict) -> dict:
@@ -36,36 +28,6 @@ def get_seq_dict_from_tree(tree: Node, seq_dict: dict) -> dict:
                 raise KeyError(f"{n.label} not in provided FASTA - extant "
                                f"sequences need to be included") from e
     return out
-
-
-def get_columns(seq_dict: dict) -> dict:
-    """takes a dictionary of an alignment (key: name, value: sequence),
-    and returns a dictionary of columns 
-    (key: position, value: dict{name: state})"""
-    col_dict = {}
-    pos = 0
-    for header, seq in seq_dict.items():
-        for char in seq:
-            try:
-                col_dict[pos][header] = char
-            except KeyError:
-                col_dict[pos] = {}
-                col_dict[pos][header] = char
-            pos += 1
-        pos = 0
-    return col_dict
-
-
-def get_site_specific_frequencies(col_dict: dict) -> dict:
-    """takes a dictionary from get_columns and returns a dictionary of 
-    site-specific frequencies"""
-    freq_dict = {}  # key is pos, value is np array of freqs
-    for pos, column in col_dict.items():
-        counts = Counter(c for c in column.values() if c in set(AA))
-        tot += sum(counts.values())
-        freqs = np.fromiter((counts[char] for char in AA), dtype=float) / tot
-        freq_dict[pos] = freqs
-    return freq_dict
 
 
 def get_opt_site_specific_frequencies(col_dict: dict, tree: str) -> dict:
@@ -86,43 +48,10 @@ def get_opt_site_specific_frequencies(col_dict: dict, tree: str) -> dict:
     return out
 
 
-def parse_site_frequencies_file(inf: str) -> dict:
-    """parse a TSV of pos\tfreqs, where freqs is comma-separated"""
-    freqs = {}
-    with open(inf, "r", encoding="utf-8") as sff:
-        for line in sff:
-            line = line.strip().split("\t")
-            freqs[int(line[0])] = np.array([float(x) for
-                                            x in line[1].split(",")])
-    return freqs
-
-
-def parse_paml_rates(path: str) -> dict:
-    """takes path to a paml 'rates' file containing estimated posterior mean 
-    rate per site and returns a dictionary of {site: rate}"""
-    out = {}
-    with open(path, "r", encoding='utf-8') as inf:
-        going = False
-        reading = False
-        for line in inf:
-            if line.strip().startswith("Site"):
-                going = True
-                continue
-            if line == "\n" and going and not reading:
-                reading = True
-                continue
-            if line == "\n" and going and reading:
-                break
-
-            if going and reading:
-                line = line.strip().split()
-                out[int(line[0])] = float(line[-2])
-    return out
-
-
 def get_node_dict_from_tree(tree: Node) -> dict:
-    """takes a tree with node labels and returns a dictionary of 
-    {label: Node}"""
+    """
+    takes a tree with node labels and returns a dictionary of {label: Node}
+    """
     out = {}
     for n in tree.iternodes():
         if not n.istip and n.label is None:
@@ -133,8 +62,10 @@ def get_node_dict_from_tree(tree: Node) -> dict:
 
 
 def get_all_branches_labelled_tree(tree: Node) -> list[tuple]:
-    """take a node-labelled tree and returns all branches as a list of 2-tuples
-    of (parent-label, descendant-label)"""
+    """
+    take a node-labelled tree and returns all branches as a list of 2-tuples of (parent-label, 
+    descendant-label), not including root or branches immediately descending root
+    """
     out = []
     for n in tree.iternodes(order="postorder"):
         par = n.parent
@@ -184,23 +115,27 @@ def get_good_branch_combs(combs: list[tuple[tuple]],
     return out
 
 
-def get_mrca(tree: Node, node1: str, node2: str) -> Node:
-    """returns the node that is the mrca for two labelled nodes"""
-    for n in tree.iternodes():
-        if n.label == node1:
-            going = True
-            while going:
-                p = n
-                if node2 in [i.label for i in p.iternodes()]:
-                    going = False
-                else:
-                    n = p.parent
-    return p
+# deprecate
+# def get_mrca(tree: Node, node1: str, node2: str) -> Node:
+#     """returns the node that is the mrca for two labelled nodes"""
+#     for n in tree.iternodes():
+#         if n.label == node1:
+#             going = True
+#             while going:
+#                 p = n
+#                 if node2 in [i.label for i in p.iternodes()]:
+#                     going = False
+#                 else:
+#                     n = p.parent
+#     return p
 
 
 def map_state_array(aa_char: str) -> np.array:
     """returns a dim20 array of zeros with idx aa = 1"""
-    idx = AAIDX[aa_char]
+    aaidx = {"A": 0, "R": 1, "N": 2, "D": 3, "C": 4, "Q": 5, "E": 6, "G": 7,
+         "H": 8, "I": 9, "L": 10, "K": 11, "M": 12, "F": 13, "P": 14, "S": 15,
+         "T": 16, "W": 17, "Y": 18, "V": 19}
+    idx = aaidx[aa_char]
     array = np.zeros(20)
     array[idx] = 1.
     return array
@@ -220,20 +155,9 @@ def get_path_length_mrca(node1: Node, node2: Node) -> tuple:
     return lengths, mrca
 
 
-def get_path_length_root(tree: Node, node1: str):
+def get_path_length_root(node: Node):
     """returns the sum of branch lengths between the node and the root"""
-    for n in tree.iternodes():
-        if n.label == node1:
-            going = True
-            brlen = 0.
-            while going:
-                p = n
-                brlen += n.length
-                if p.parent is None:  # root
-                    going = False
-                else:
-                    n = p.parent
-    return brlen
+    return sum(a.length for a in node.get_ancestors(True))
 
 
 def compute_transition_probs(model: Discrete_model, brlens: list[float],
@@ -436,7 +360,7 @@ if __name__ == "__main__":
     nodes = get_node_dict_from_tree(curroot)
 
     if args.label:
-        print(f"{to_string(curroot)};")
+        print(f"{curroot.to_string()};")
         sys.exit()
 
     # print(get_path_length_mrca(curroot, "N224", "N172"))
@@ -445,12 +369,12 @@ if __name__ == "__main__":
     # sys.exit()
 
     if args.rates:
-        rates_dict = parse_paml_rates(args.rates)
+        rates_dict = sq.parse_paml_rates(args.rates)
     else:
         rates_dict = None
 
-    ancs = dict(parse_fasta(args.ancestors))
-    anc_cols = get_columns(ancs)
+    ancs = dict(sq.parse_fasta(args.ancestors))
+    anc_cols = sq.get_columns(ancs)
 
     # set up model
     modJTT = Discrete_model()
@@ -465,10 +389,10 @@ if __name__ == "__main__":
 
     if args.site_frequencies:
         if args.site_frequencies_file:
-            site_freqs = parse_site_frequencies_file(args.site_frequencies_file)
+            site_freqs = sq.parse_site_frequencies_file(args.site_frequencies_file)
         else:
             extants = get_seq_dict_from_tree(curroot, ancs)
-            extant_cols = get_columns(extants)
+            extant_cols = sq.get_columns(extants)
             site_freqs = get_opt_site_specific_frequencies(extant_cols,
                                                            args.tree)
     else:
