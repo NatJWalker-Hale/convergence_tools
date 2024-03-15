@@ -6,11 +6,9 @@
 import sys
 import argparse
 from itertools import combinations
-from collections import Counter
 from calc_expected_conv import get_good_branch_combs
 from calc_expected_conv import get_all_branches_labelled_tree
-from calc_expected_conv import get_path_length_mrca
-import tree_reader
+import newick as nwk
 
 
 def read_subs(path):
@@ -24,16 +22,20 @@ def read_subs(path):
             line = line.strip().split("\t")
             parent_descendant = (line[0], line[1])
             try:
-                subsStr = line[2].split(",")
+                subs_str = line[2].split(",")
             except IndexError:  # no subs
                 continue
-            subs = [(x[0], int(x[1:-1]), x[-1]) for x in subsStr]
-            subs_dict[parent_descendant] = subs
+            substitutions = [(x[0], int(x[1:-1]), x[-1]) for x in subs_str]
+            subs_dict[parent_descendant] = substitutions
 
     return subs_dict
 
 
 def get_ref_pos_dict(seq_dict: dict) -> dict:
+    """
+    returns a dictionary showing the correspondence between each sequence position and alignment
+    position for all sequences
+    """
     all_corr_dict = {}
     for header in seq_dict.keys():
         corr_dict = {}
@@ -49,6 +51,30 @@ def get_ref_pos_dict(seq_dict: dict) -> dict:
                 seq_pos += 1
         all_corr_dict[header] = corr_dict
     return all_corr_dict
+
+
+def count_conv_subs(comb: tuple[tuple], subs_dict: dict) -> dict:
+    """
+    function to count convergent and divergent substitutions in a branch combo of 
+    ((par,desc ), (par, desc), ...) from a subs_dict produced by read_subs()
+    """
+    out_dict = {"CONV": 0, "DIV": 0}
+
+    branch_subs = [subs_dict.get(branch, []) for branch in comb]
+    if all(branch_subs):
+        positions = [s[1] for subs in branch_subs for s in subs]
+        duplicate_positions = set(p for p in positions if positions.count(p) > 1)
+
+        for pos in duplicate_positions:
+            end_states = {s[2] for subs in branch_subs for s in subs if s[1] == pos}
+            if len(end_states) == 1:
+                out_dict["CONV"] += 1
+            else:
+                out_dict["DIV"] += 1
+    else:
+        raise ValueError(f"no substitutions along at least one branch in {comb}")
+
+    return out_dict
 
 
 if __name__ == "__main__":
@@ -75,7 +101,7 @@ if __name__ == "__main__":
 
     subs = read_subs(args.subsfile)
 
-    curroot = next(tree_reader.read_tree_file_iter(args.tree))
+    curroot = nwk.parse_from_file(args.tree)
     curroot.number_nodes()
     # make dict of tree nodes indexed by label
     node_dict = {}
@@ -93,61 +119,28 @@ if __name__ == "__main__":
         branches = [(x.split(",")[0], x.split(",")[1]) for x in args.branches]
 
     branch_comb_dict = {}  # key is order, value is list of tuples
-    i = 2
-    while i <= args.atleast:
-        branch_combs = combinations(branches, i)
+    o = 2
+    while o <= args.atleast:
+        branch_combs = combinations(branches, o)
         good_combs = get_good_branch_combs(branch_combs, curroot)
-        branch_comb_dict[i] = good_combs
-        i += 1
+        branch_comb_dict[o] = good_combs
+        o += 1
 
     # print(branch_comb_dict)
 
-    out_dict = {}
+    results = {}
     for order, combos in branch_comb_dict.items():
         for branch_comb in combos:  # specific branch combs at a given level
-            out_dict[branch_comb] = {}
-            branch_subs = []
-            for branch in branch_comb:
-                try:
-                    branch_subs += list(subs[branch])
-                except KeyError:  # no subs on this branch
-                    sys.stderr.write(f"no substitutions along {branch} "
-                                     f"skipping {branch_comb}\n")
-                    break
-            pos = [s[1] for s in branch_subs]
-            if len(set(pos)) < len(subs):  # more than one branch has sub
-                pos = [k for k, v in Counter(pos).items() if v == order]
-                for p in pos:
-                    end_states = [s[2] for s in branch_subs if s[1] == p]
-                    if len(set(end_states))  == 1:
-                        try:
-                            out_dict[branch_comb]["CONV"] += 1
-                        except KeyError:
-                            out_dict[branch_comb]["CONV"] = 1
-                    else:
-                        try:
-                            out_dict[branch_comb]["DIV"] += 1
-                        except KeyError:
-                            out_dict[branch_comb]["DIV"] = 1
-            if order == 2:
-                lengths, _ = get_path_length_mrca(curroot, branch_comb[0][1],
-                                                  branch_comb[1][1])
-                out_dict[branch_comb]["path_length"] = sum(lengths)
+            results[branch_comb] = count_conv_subs(branch_comb, subs)
 
     print("order\tbranches\tconv\tdiv\tlength")
-    for k, v in out_dict.items():
+    for k, v in results.items():
         order = len(k)
-        try:
-            conv = v["CONV"]
-        except KeyError:
-            conv = 0
-        try:
-            div = v["DIV"]
-        except KeyError:
-            div = 0
+        conv = v["CONV"]
+        div = v["DIV"]
         try:
             length = v["path_length"]
         except KeyError:
-            length = 0
+            length = 0.
         branches = " ".join([",".join(i) for i in k])
         print(f"{order}\t{branches}\t{conv}\t{div}\t{length:.4f}")

@@ -43,7 +43,7 @@ def sim_sites(treef: str, frequencies: np.array, model: str="JTT",
             f"{model}",
             "-f"
     ]
-    cmd += [f"{s:.4f}" for s in frequencies]   
+    cmd += [f"{s:.4f}" for s in frequencies]
     cmd += ["-of", "-wa"]
     # cmd += ["-z", "12345"]
     if use_anc is not None:
@@ -185,6 +185,8 @@ if __name__ == "__main__":
     parser.add_argument("tree", help="tree to simulate sequences along, with node labels")
     parser.add_argument("-r", "--rates", help="PAML 'rates' file containing BEB estimates of \
                         site-specific rates to use per-site")
+    parser.add_argument("-g", "--gapped", help="clone gaps from input alignment into simulated",
+                        action="store_true")
     args = parser.parse_args()
 
     curroot = nwk.parse_from_file(args.tree)
@@ -193,9 +195,13 @@ if __name__ == "__main__":
         rates_dict = sq.parse_paml_rates(args.rates)
     else:
         rates_dict = None
-    print(rates_dict)
-    sim_gf = sim_alignment_gene_freqs(tree=curroot, seq_dict=seqs, use_anc=1)
-    # print(sq.get_fasta_str(sim_gf))
+    sim_gf = sim_alignment_gene_freqs(tree=curroot, seq_dict=seqs, use_anc=1, gamma=(4, 0.8))
+    # print(seqs)
+    if args.gapped:
+        sim_gf = sq.insert_gaps_by_seq(seqs, sim_gf)
+    print(sq.get_fasta_str(sim_gf))
 
-    sim_sf = sim_alignment_site_freqs(tree=curroot, seq_dict=seqs, use_anc=1, rates=rates_dict)
+    # sim_sf = sim_alignment_site_freqs(tree=curroot, seq_dict=seqs, use_anc=1, rates=rates_dict)
+    # if args.gapped:
+    #     sim_sf = sq.insert_gaps_by_seq(seqs, sim_sf)
     # print(sq.get_fasta_str(sim_sf))

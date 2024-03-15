@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 
 
-"""Calculate expected convergence and divergence given a tree and some
-reconstructed states following Zou & Zhang (2015)"""
+"""
+Calculate expected convergence and divergence given a tree and some reconstructed states following 
+Zou & Zhang (2015)
+"""
 
 
 import sys
