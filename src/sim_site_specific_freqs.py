@@ -8,6 +8,7 @@ simulate single sites and concatenate"""
 import sys
 import argparse
 import subprocess
+from copy import deepcopy
 import numpy as np
 import sequence as sq
 import newick as nwk
@@ -64,10 +65,60 @@ def sim_sites(treef: str, frequencies: np.array, model: str="JTT",
     return out
 
 
+def sim_sites_indelible(tree: Node, seq_dict: dict, model: str="JTT", rates: dict=None,
+                        site_freqs: dict=None, reps: int=100) -> dict[dict]:
+    """
+    mimics an alignment with site-specific frequencies (and optionally, rates) with indelible. Site
+    rates are assumed to have mean 1.0 and are implemented as a branch length scalar. Returns a
+    dictionary where key is replicate and value is seq_dict of replicate
+    """
+    extants = {n.label: seq_dict[n.label] for n in tree.iternodes() if n.istip}
+    if site_freqs is None:
+        site_freqs = sq.get_site_specific_frequencies(extants)
+    with open("control.txt", "w", encoding="utf-8") as inf:
+        inf.write("[TYPE] AMINOACID 1\n\n")
+        inf.write("[SETTINGS]\n")
+        inf.write("  [ancestralprint] SAME\n")
+        inf.write("  [output] FASTA\n")
+        inf.write("  [fastaextension] fa\n")
+        inf.write("  [fileperrep] TRUE\n\n")
+        for pos in site_freqs:  # iterate over sites
+            inf.write(f"[MODEL] m{pos}\n")
+            inf.write(f"  [submodel] {model}\n")
+            inf.write("  [indelrate] 0\n")
+            inf.write("  [rates] 0 0 0\n")
+            inf.write("  [statefreq] " + " ".join([f"{s:.4f}" for s in site_freqs[pos]]) + "\n\n")
+        for pos in site_freqs:
+            inf.write(f"[TREE] t{pos} ")
+            if rates is not None:
+                scaled = deepcopy(tree)
+                for n in scaled.iternodes():
+                    n.length *= rates[pos]
+                inf.write(f"{scaled.to_string(label=False)};\n")
+            else:
+                inf.write(f"{tree.to_string(label=False)};\n")
+        inf.write("\n[PARTITIONS] sites\n")
+        for pos in site_freqs:
+            inf.write(f"  [t{pos}  m{pos}  1]\n")
+        inf.write("[EVOLVE]\n")
+        inf.write(f"  sites {reps} indelible_out\n")
+    cmd = ["indelible", "control.txt"]
+    sys.stderr.write(f"{subprocess.list2cmdline(cmd)}\n")
+    subprocess.run(cmd, shell=False, check=False)
+    reps_dict = {i: {} for i in range(reps)}
+    for i in reps_dict:
+        sim_rep = dict(sq.parse_fasta(f"indelible_out_TRUE_{i+1}.fa"))
+        sim_rep = rename_ancestral_seqs_indelible(tree, sim_rep)
+        sim_rep = sq.insert_gaps_by_seq(seq_dict, sim_rep)
+        sq.write_fasta(sim_rep, f"indelible_out_TRUE_{i+1}_rn_gap.fa")
+        reps_dict[i] = sim_rep
+
+    return reps_dict
+
+
 def concat_seqs(seq_dict1: dict, seq_dict2: dict) -> dict:
     """
-    concatenate contents of two dictionaries with matching keys into a
-    third
+    concatenate contents of two dictionaries with matching keys into a third
     """
     out = {}
     for header, seq in seq_dict1.items():
@@ -103,6 +154,25 @@ def rename_ancestral_seqs(tree: Node, seq_dict: dict) -> dict:
         if not n.istip:
             out[n.label] = seq_dict[str(name)]
             name += 1
+        else:
+            out[n.label] = seq_dict[n.label]
+    return out
+
+
+def rename_ancestral_seqs_indelible(tree: Node, seq_dict: dict):
+    """
+    rename ancestral sequences from indelible
+    """
+    tips = len(tree.lvsnms())
+    name = tips + 1
+    out = {}
+    for n in tree.iternodes():
+        if not n.istip:
+            if n.parent is None:
+                out[n.label] = seq_dict["ROOT"]
+            else:
+                out[n.label] = seq_dict[f"N{name}"]
+                name += 1
         else:
             out[n.label] = seq_dict[n.label]
     return out
@@ -151,8 +221,7 @@ def sim_alignment_site_freqs(tree: Node, seq_dict: dict, model: str="JTT", use_a
     sequence dictionary {header: sequence}
     """
     extants = {n.label: seq_dict[n.label] for n in tree.iternodes() if n.istip}
-    ext_columns = sq.get_columns(extants)
-    site_freqs = sq.get_site_specific_frequencies(ext_columns)
+    site_freqs = sq.get_site_specific_frequencies(extants)
     all_columns = sq.get_columns(seq_dict)
     out = {header: "" for header in seq_dict}
     for pos, site in all_columns.items():
@@ -195,13 +264,15 @@ if __name__ == "__main__":
         rates_dict = sq.parse_paml_rates(args.rates)
     else:
         rates_dict = None
-    sim_gf = sim_alignment_gene_freqs(tree=curroot, seq_dict=seqs, use_anc=1, gamma=(4, 0.8))
+    # sim_gf = sim_alignment_gene_freqs(tree=curroot, seq_dict=seqs, use_anc=1, gamma=(4, 0.8))
     # print(seqs)
-    if args.gapped:
-        sim_gf = sq.insert_gaps_by_seq(seqs, sim_gf)
-    print(sq.get_fasta_str(sim_gf))
+    # if args.gapped:
+    #     sim_gf = sq.insert_gaps_by_seq(seqs, sim_gf)
+    # print(sq.get_fasta_str(sim_gf))
 
     # sim_sf = sim_alignment_site_freqs(tree=curroot, seq_dict=seqs, use_anc=1, rates=rates_dict)
     # if args.gapped:
     #     sim_sf = sq.insert_gaps_by_seq(seqs, sim_sf)
     # print(sq.get_fasta_str(sim_sf))
+
+    # sim_sites_indelible(curroot, seqs, model="JTT", rates=rates_dict, reps=100)

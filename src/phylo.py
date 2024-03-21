@@ -18,6 +18,7 @@ class Node:
         self.children = []
         self.nchildren = 0
         self.excluded_dists = []
+        self.number = 0
 
     ### NWH additions
     def is_rooted(self):
@@ -56,7 +57,7 @@ class Node:
     def number_nodes(self):
         # modifies in place
         c = 1
-        for n in self.iternodes(order=0):
+        for n in self.iternodes():
             if n.istip:
                 continue
             n.label = f"N{c}"
@@ -101,8 +102,11 @@ class Node:
 
     def leaves(self):
         return [ n for n in self.iternodes() if n.istip ]
+    
+    def lvsnms(self):
+        return [ n.label for n in self.iternodes() if n.istip ]
 
-    def iternodes(self, order=POSTORDER, v=None):
+    def iternodes(self, order=PREORDER):
         """
         returns a list of nodes descendant from self - including self
         """
@@ -170,7 +174,7 @@ class Node:
                 elif measure == INTERNODES:
                     dist = 1
                 else:
-                    raise "InvalidMeasure"
+                    raise ValueError("InvalidMeasure")
                 child.leaf_distances(store, measure)
                 if child.istip:
                     leaf2len[child.label] = dist
@@ -280,16 +284,19 @@ class Node:
                 sisters.append(i)
         return sisters
     
-    def to_string(self, brlen=True):
+    def to_string(self, brlen=True, label=True):
         if not self.istip:
-            node_str = (f"({','.join([child.to_string(brlen) for child in self.children])})"
-                        f"{self.label or ''}")
+            node_str = (f"({','.join([child.to_string(brlen, label) for child in self.children])})"
+                        f"{self.label if label else ''}")
         else:
             node_str = f"{self.label}"
 
         if self.length is not None:
             if brlen:
-                length_str = f"{self.length}"
+                if self.parent is None:
+                    length_str = ""
+                else:
+                    length_str = f":{self.length:.6f}"
             else:
                 length_str = ""
         else:

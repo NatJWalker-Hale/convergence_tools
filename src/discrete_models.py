@@ -1,25 +1,29 @@
 #!/usr/bin/env python3
 
 
-import sys
 from collections import Counter
 import numpy as np
 from scipy.linalg import expm
-from parse_fasta import parse_fasta
 
 
-class Discrete_model():
+class DiscreteModel():
+    """
+    Discrete state continuous time Markov chain model
+    """
     def __init__(self):
         self.nstates = 0
-        self.freqs = np.array
-        self.mfreqs = np.array
-        self.emfreqs = np.array
-        self.eqfreqs = np.array
+        self.freqs: np.array
+        self.mfreqs: np.array
+        self.emfreqs: np.array
+        self.eqfreqs: np.array
         self.alphabet = ""
-        self.R = np.array
-        self.Q = np.array
+        self.R: np.array
+        self.Q: np.array
 
     def set_rate_JTT(self):
+        """
+        set rate matrix to JTT exchangeabilities
+        """
         self.alphabet = "aa"
         self.nstates = 20
         modstr = """58
@@ -53,7 +57,7 @@ class Discrete_model():
             for j in range(20):
                 if j == i:
                     continue
-                elif j > i:
+                if j > i:
                     ex[i, j] = float(modstr[j-1].strip().split(" ")[i])
                 else:
                     ex[i, j] = float(modstr[i-1].strip().split(" ")[j])
@@ -68,22 +72,37 @@ class Discrete_model():
         self.mfreqs = mfreqs
 
     def set_model_freqs(self):
+        """
+        set frequencies to model frequencies
+        """
         self.freqs = self.mfreqs
 
     def set_empirical_freqs(self):
+        """
+        set frequencies to empirical frequencies
+        """
         self.freqs = self.emfreqs
 
     def set_equal_freqs(self):
+        """
+        set equal frequencies
+        """
         self.eqfreqs = np.ones(self.nstates)
         self.eqfreqs = self.eqfreqs / sum(self.eqfreqs)
 
     def set_frequencies(self, freqs: np.array):
+        """
+        set frequencies to the values in freqs
+        """
         self.freqs = freqs
 
     def scale_rate_matrix(self):
-        bigPi = np.diag(self.freqs)
+        """
+        scale the rate matrix to an average rate of 1
+        """
+        big_pi = np.diag(self.freqs)
 
-        q_unscaled = self.R @ bigPi
+        q_unscaled = self.R @ big_pi
 
         for i in range(20):
             q_unscaled[i, i] = -sum(q_unscaled[i])
@@ -93,6 +112,9 @@ class Discrete_model():
         self.Q = q
 
     def get_P(self, brlen=0.1, rate=1.0):
+        """
+        calculate transition probability matrix by matrix exponentiation
+        """
         p = expm(self.Q * brlen * rate)
         return p
 
@@ -141,10 +163,40 @@ def get_states(alphabet: str) -> str:
 
 
 if __name__ == "__main__":
-    mod = Discrete_model()
+    mod = DiscreteModel()
     mod.set_rate_JTT()
     mod.set_model_freqs()
     mod.scale_rate_matrix()
+
+    # let's test that we recover the right likelihood with this using the following
+
+    #             |--0.1--| A
+    # |----0.2----|
+    # |           |--0.1--| A
+    # |
+    # |--0.1--| N
+    # |
+    # |--0.1--| D
+
+    p01 = mod.get_P(0.1)
+    p02 = mod.get_P(0.2)
+    # tip likelihoods are
+    t1 = np.array([1.] + [0.]*19)
+    t2 = np.array([1.] + [0.]*19)
+    t3 = np.array([0., 0., 1.] + [0.]*17)
+    t4 = np.array([0., 0., 0., 1.] + [0.]*16)
+    node1_P = np.zeros(20)
+    for i in range(20):
+        node1_P[i] = sum(p01[i,] * t1) * sum(p01[i ,] * t1)
+
+    root_P = np.zeros(20)
+    for i in range(20):
+        root_P[i] = sum(p02[i,] * node1_P) * sum(p01[i ,] * t3) * sum(p01[i ,] * t4)
+
+    l = sum(mod.freqs * root_P)
+    logl = np.log(l)
+    assert round(logl, 6) == -11.045645
+
     # print(mod.get_P(0.1))
 
     # experiment with exactly as written J. Zhang paper
@@ -152,6 +204,6 @@ if __name__ == "__main__":
     # mod.set_rate_JTT()
     # print(expm(logm(mod.R)*0.1))
 
-    seqs = dict(parse_fasta("DODAa_combined_no_og_strict_for_synth.cds.fa.nostop.name.noF.best.fas.trans"))
-    mod.calc_empirical_freqs(seqs)
-    print(mod.emfreqs)
+    # seqs = dict(parse_fasta("DODAa_combined_no_og_strict_for_synth.cds.fa.nostop.name.noF.best.fas.trans"))
+    # mod.calc_empirical_freqs(seqs)
+    # print(mod.emfreqs)

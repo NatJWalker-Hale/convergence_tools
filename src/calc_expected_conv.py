@@ -14,7 +14,7 @@ import numpy as np
 import sequence as sq
 from newick import parse_from_file
 from phylo import Node, getMRCATraverse
-from discrete_models import Discrete_model
+from discrete_models import DiscreteModel
 from optimise_raxmlng import get_optimised_freqs
 
 
@@ -46,7 +46,7 @@ def get_opt_site_specific_frequencies(col_dict: dict, tree: str) -> dict:
         out[pos] = freqs
     with open("site_frequencies.tsv", "w", encoding="utf-8") as siteff:
         for pos, freq in out.items():
-            siteff.write(f"{pos}\t{','.join([str(f) for f in freq])}\n")
+            siteff.write(f"{pos}\t" + ','.join([f"{num:.6f}" for num in freq]) + "\n")
     return out
 
 
@@ -162,7 +162,7 @@ def get_path_length_root(node: Node):
     return sum(a.length for a in node.get_ancestors(True))
 
 
-def compute_transition_probs(model: Discrete_model, brlens: list[float],
+def compute_transition_probs(model: DiscreteModel, brlens: list[float],
                              rate: float=1.0):
     """
     computes the four transition probability matrices necessary for joint
@@ -182,7 +182,7 @@ def compute_transition_probs_site_freqs(frequencies: np.array,
     convergence probability calculation for two branches, rescaling the model
     matrix to use site-specific frequencies
     """
-    model = Discrete_model()
+    model = DiscreteModel()
     model.set_rate_JTT()
     model.set_frequencies(frequencies)
     with np.errstate(divide="raise"):
@@ -198,7 +198,7 @@ def compute_transition_probs_site_freqs(frequencies: np.array,
     return p0, p1, p01, p11
 
 
-def main(combs: list[tuple[tuple]], tree: Node, model: Discrete_model,
+def main(combs: list[tuple[tuple]], tree: Node, model: DiscreteModel,
          ancestor_columns: dict, rates: dict = None,
          site_frequencies: dict = None, div = False) -> dict:
     """
@@ -379,7 +379,7 @@ if __name__ == "__main__":
     anc_cols = sq.get_columns(ancs)
 
     # set up model
-    modJTT = Discrete_model()
+    modJTT = DiscreteModel()
     modJTT.set_rate_JTT()
     if args.empirical_frequencies:
         extants = get_seq_dict_from_tree(curroot, ancs)
@@ -394,9 +394,11 @@ if __name__ == "__main__":
             site_freqs = sq.parse_site_frequencies_file(args.site_frequencies_file)
         else:
             extants = get_seq_dict_from_tree(curroot, ancs)
-            extant_cols = sq.get_columns(extants)
-            site_freqs = get_opt_site_specific_frequencies(extant_cols,
-                                                           args.tree)
+            site_freqs = sq.get_site_specific_frequencies(extants)
+            with open("site_frequencies.tsv", "w", encoding="utf-8") as sff:
+                for pos, freq in site_freqs.items():
+                    sff.write(f"{pos}\t")
+                    sff.write(",".join([f"{f:.4f}" for f in freq]) + "\n")
     else:
         site_freqs = None
 

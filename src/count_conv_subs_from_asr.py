@@ -6,8 +6,7 @@
 import sys
 import argparse
 from itertools import combinations
-from calc_expected_conv import get_good_branch_combs
-from calc_expected_conv import get_all_branches_labelled_tree
+from calc_expected_conv import get_good_branch_combs, get_all_branches_labelled_tree
 import newick as nwk
 
 
@@ -60,23 +59,26 @@ def count_conv_subs(comb: tuple[tuple], subs_dict: dict) -> dict:
     """
     out_dict = {"CONV": 0, "DIV": 0}
 
-    branch_subs = [subs_dict.get(branch, []) for branch in comb]
+    branch_subs = [s for br in comb for s in subs_dict[br]]
+    # print(f"branch_subs: {branch_subs}")
     if all(branch_subs):
-        positions = [s[1] for subs in branch_subs for s in subs]
+        positions = [sub[1] for sub in branch_subs]
+        # print(f"positions: {positions}")
         duplicate_positions = set(p for p in positions if positions.count(p) > 1)
 
         for pos in duplicate_positions:
-            end_states = {s[2] for subs in branch_subs for s in subs if s[1] == pos}
+            end_states = {sub[2] for sub in branch_subs if sub[1] == pos}
+            # print(f"end states: {end_states}")
             if len(end_states) == 1:
                 out_dict["CONV"] += 1
             else:
                 out_dict["DIV"] += 1
     else:
-        raise ValueError(f"no substitutions along at least one branch in {comb}")
+        raise ValueError(f"no substitutions along branches in {comb}")
 
     return out_dict
 
-
+    
 if __name__ == "__main__":
     if len(sys.argv[1:]) == 0:
         sys.argv.append("-h")

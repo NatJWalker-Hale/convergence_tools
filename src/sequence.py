@@ -131,16 +131,22 @@ def get_columns(seq_dict: dict) -> dict:
     return col_dict
 
 
-def get_site_specific_frequencies(col_dict: dict) -> dict:
+def get_site_specific_frequencies(seq_dict: dict, smooth: bool=True) -> dict:
     """
     takes a dictionary from get_columns and returns a dictionary of site-specific frequencies
     """
     aa = "ARNDCQEGHILKMFPSTWYV"
+    col_dict = get_columns(seq_dict)
     freq_dict = {}  # key is pos, value is np array of freqs
     for pos, column in col_dict.items():
-        counts = Counter(c for c in column.values() if c in set(aa))
+        counts = Counter(char for char in column.values() if char in set(aa))
         tot = sum(counts.values())
-        freqs = np.fromiter((counts[char] for char in aa), dtype=float) / tot
+        if smooth:  # smoothing
+            freqs = np.fromiter((counts[char] + 0.5 for char in aa), dtype=float) / (tot +
+                                                                                        10)
+            # Jeffrey's prior
+        else:  # no smoothing
+            freqs = np.fromiter((counts[char] for char in aa), dtype=float) / tot
         freq_dict[pos] = freqs
     return freq_dict
 
@@ -189,6 +195,28 @@ def parse_paml_rates(path: str) -> dict:
 
             if going and reading:
                 line = line.strip().split()
-                out[int(line[0]) - 1] = float(line[-2])
+                out[int(line[0]) - 1] = float(line[-2])  # for 0-indexing
     return out
 
+
+def insert_gaps_by_seq(ref:dict, query:dict):
+    """clones gaps from a reference sequence into a query sequence, for example
+    to insert gaps in simulated sequences to match an empirical alignment"""
+    out = {}
+    for header, seq in query.items():
+        out[header] = ""
+        try:
+            for n, _ in enumerate(seq):
+                if ref[header][n] == "-":
+                    out[header] += "-"
+                else:
+                    out[header] += query[header][n]
+        except KeyError as e:
+            raise KeyError(header + " not in reference data, skipping\n") from e
+    return out
+
+
+if __name__ == "__main__":
+    seqs = dict(parse_fasta("DODAa_combined_no_og_strict_for_synth.cds.fa.nostop.name.noF.best.fas.trans"))
+    site_freqs = get_site_specific_frequencies(seqs)
+    print(site_freqs)

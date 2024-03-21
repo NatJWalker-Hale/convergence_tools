@@ -83,10 +83,10 @@ def parse(input, ttable=None):
             if not (token == ''):
                 try:
                     brlen = float(token)
-                except ValueError:
-                    raise "NewickError invalid literal for branch length, '%s'" % token
+                except ValueError as e:
+                    raise ValueError("NewickError invalid literal for branch length") from e
             else:
-                raise "NewickError unexpected end-of-file (expecting branch length)"
+                raise ValueError("NewickError unexpected end-of-file (expecting branch length)")
 
             node.length = brlen
         # comment
