@@ -6,6 +6,7 @@ utilties for parsing, writing and processing common sequence file formats
 """
 
 
+import re
 from collections import Counter
 import numpy as np
 
@@ -24,8 +25,22 @@ def parse_phylip(path: str):
     parse relaxed PHYLIP from file. Will fail with interleaved
     """
     with open(path, "r", encoding="utf-8") as inf:
-        phy_str = inf.read()
-        parse_phylip_str(phy_str)
+        next(inf, (None, None))
+        header = seq = ""
+        for line in inf:
+            line = line.strip()
+            if bool(re.search(r"\s", line)):
+                line = line.split()
+                if header:
+                    yield header, seq
+                    header = line[0]
+                    seq = line[1]
+                else:
+                    header = line[0]
+                    seq = line[1]
+            else:
+                seq += line.strip()
+        yield header, seq
 
 
 def parse_phylip_str(phy_str: str):
@@ -33,10 +48,21 @@ def parse_phylip_str(phy_str: str):
     parse relaxed PHYLIP from string. Will fail with interleaved
     """
     lines = phy_str.strip().split("\n")
+    header = seq = ""
     for line in lines[1:]:
-        line = line.strip().split()
-        yield line[0], line[1]
-
+        line = line.strip()
+        if bool(re.search(r"\s", line)):  # sequence header
+            line = line.split()
+            if header:
+                yield header, seq
+                header = line[0]
+                seq = line[1]
+            else:
+                header = line[0]
+                seq = line[1]
+        else:
+            seq += line.strip()
+    yield header, seq
 
 def get_phylip_str(seq_dict) -> str:
     """

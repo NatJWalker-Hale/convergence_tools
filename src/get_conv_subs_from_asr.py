@@ -10,38 +10,38 @@ def read_subs(path):
     """takes as input a tab-delimited substitution file produced by
     summarise_asr_over_tree.py
     Consists of parent  descendant  subs[comma-separated, format A265V]"""
-    subsDict = {}
-    with open(path, "r") as inf:
+    subs_dict = {}
+    with open(path, "r", encoding="utf-8") as inf:
         next(inf)  # skip header
         for line in inf.readlines():
             line = line.strip().split("\t")
-            parentDescendant = (line[0], line[1])
+            parent_descendant = (line[0], line[1])
             try:
-                subsStr = line[2].split(",")
+                subs_str = line[2].split(",")
             except IndexError:  # no subs
                 continue
-            subs = [(x[0], int(x[1:-1]), x[-1]) for x in subsStr]
-            subsDict[parentDescendant] = subs
+            subs = [(x[0], int(x[1:-1]), x[-1]) for x in subs_str]
+            subs_dict[parent_descendant] = subs
 
-    return subsDict
+    return subs_dict
 
 
-def get_ref_pos_dict(seqDict):
-    allCorrDict = {}
-    for k in seqDict.keys():
-        corrDict = {}
+def get_ref_pos_dict(seq_dict: dict):
+    all_corr_dict = {}
+    for k in seq_dict.keys():
+        corr_dict = {}
         aln_pos = 1
         seq_pos = 1
-        for i in seqDict[k]:
+        for i in seq_dict[k]:
             if i == "-":
-                corrDict[aln_pos] = 0
+                corr_dict[aln_pos] = 0
                 aln_pos += 1
             else:
-                corrDict[aln_pos] = seq_pos
+                corr_dict[aln_pos] = seq_pos
                 aln_pos += 1
                 seq_pos += 1
-        allCorrDict[k] = corrDict
-    return allCorrDict
+        all_corr_dict[k] = corr_dict
+    return all_corr_dict
 
 
 if __name__ == "__main__":
@@ -96,7 +96,7 @@ if __name__ == "__main__":
         if not args.alignment:
             sys.stderr.write("must supply alignment for reference mode\n")
             sys.exit()
-        seqs = dict([x for x in parse_fasta(args.alignment)])
+        seqs = dict(parse_fasta(args.alignment))
         corres = get_ref_pos_dict(seqs)
 
     if args.isin and not args.notin:
@@ -124,10 +124,9 @@ if __name__ == "__main__":
             if args.groups is not None:
                 contained = False
                 for g in args.groups:
-                    g = [n for n in g.split(",")]
+                    g = g.split(",")
                     if set(chain.from_iterable(b)).issubset(set(g)):
-                        sys.stderr.write("skipping %s contained in %s\n"
-                                         % (b, g))
+                        sys.stderr.write(f"skipping {b} contained in {g}\n")
                         contained = True
                 if contained:
                     continue
@@ -176,8 +175,8 @@ if __name__ == "__main__":
                 #         continue
                 endState = [s[2] for s in subs[b] if pos == s[1]][0]
                 if endStates.count(endState) >= args.atleast:
-                    """make changes here in future to add requirements of 2-,
-                    3-way overlap etc."""
+                    # make changes here in future to add requirements of 2-,
+                    # 3-way overlap etc.
                     if args.ref_desc:
                         print("\t".join([str(pos),
                                          str(corres[b[1]][pos]),
@@ -215,22 +214,21 @@ if __name__ == "__main__":
                              if pos == s[1]]
                 if len(subsInPos) == 0:
                     continue
-                else:
-                    if args.ref_desc:
-                        print("\t".join([str(pos),
-                                         str(corres[b[1]][pos]),
-                                         b[0],
-                                         b[1],
-                                         ",".join(subsInPos)]))
-                    elif args.ref_par:
-                        print("\t".join([str(pos),
-                                         str(corres[n[0]][pos]),
-                                         b[0],
-                                         b[1],
-                                         ",".join(subsInPos)]))
-                    else:
-                        print("\t".join([str(pos), b[0], b[1],
+                if args.ref_desc:
+                    print("\t".join([str(pos),
+                                        str(corres[b[1]][pos]),
+                                        b[0],
+                                        b[1],
                                         ",".join(subsInPos)]))
+                elif args.ref_par:
+                    print("\t".join([str(pos),
+                                        str(corres[b[0]][pos]),
+                                        b[0],
+                                        b[1],
+                                        ",".join(subsInPos)]))
+                else:
+                    print("\t".join([str(pos), b[0], b[1],
+                                    ",".join(subsInPos)]))
     if args.nonconv:
         for b in branches:
             for s in subs[b]:

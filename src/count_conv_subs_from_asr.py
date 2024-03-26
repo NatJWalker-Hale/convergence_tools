@@ -84,21 +84,18 @@ if __name__ == "__main__":
         sys.argv.append("-h")
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("tree", help="Tree file containing newick-formatted \
-                        tree to run analysis on")
-    parser.add_argument("subsfile", help="tsv with subs produced by \
-                        summarise_asr_over_tree.py")
-    parser.add_argument("branches", help="space-separated parent-daughter \
-                        comparisons in format parent,daughter",
-                        type=str, nargs="+")
-    parser.add_argument("-a", "--all", help="Calculate expectation for all \
-                        possible acceptable branch pairs, not just those in \
-                        [branches ...]", action="store_true")
-    parser.add_argument("-atl", "--atleast", help="sub must occur in at least \
-                        n branches (default 2)", type=int, default=2)
-    parser.add_argument("-nc", "--nonconv", help="also write \
-                        non-site-overlapping changes on each branch",
-                        action="store_true")
+    parser.add_argument("tree", help="Tree file containing newick-formatted tree to run analysis \
+                        on")
+    parser.add_argument("alignment", help="FASTA-formatted alignment containing ancestral \
+                        sequences with headers corresponding to node labels in tree")
+    parser.add_argument("branches", help="space-separated parent-daughter comparisons in format \
+                        parent,daughter", type=str, nargs="+")
+    parser.add_argument("-a", "--all", help="get counts for all possible acceptable branch pairs, \
+                        not just those in [branches ...]", action="store_true")
+    parser.add_argument("-atl", "--atleast", help="sub must occur in at least n branches (default \
+                        2)", type=int, default=2)
+    parser.add_argument("-nc", "--nonconv", help="also write non-site-overlapping changes on each \
+                        branch", action="store_true")
     args = parser.parse_args()
 
     subs = read_subs(args.subsfile)

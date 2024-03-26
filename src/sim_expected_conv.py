@@ -104,7 +104,7 @@ def run_sim_sf(tree: Node, alignment: dict, branch_combs: list[tuple[tuple]], mo
         sim_aln = sq.insert_gaps_by_seq(alignment, sim_aln)
         # print(sq.get_fasta_str(sim_aln))
         add_subs(ex_br_dict, sim_aln)
-        
+
         for comb in branch_combs:
             ex_res = count_conv_subs(comb, ex_br_dict)
             results_dict[comb]["ex_conv"] += ex_res["CONV"]
@@ -120,7 +120,7 @@ def run_sim_sf(tree: Node, alignment: dict, branch_combs: list[tuple[tuple]], mo
             results_dict[comb]["reps"] += 1
 
         i += 1
-    
+
     for v in results_dict.values():
         v["ex_conv"] = v["ex_conv"] / v["reps"]
         v["ex_div"] = v["ex_div"] / v["reps"]

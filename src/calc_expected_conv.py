@@ -198,9 +198,9 @@ def compute_transition_probs_site_freqs(frequencies: np.array,
     return p0, p1, p01, p11
 
 
-def main(combs: list[tuple[tuple]], tree: Node, model: DiscreteModel,
-         ancestor_columns: dict, rates: dict = None,
-         site_frequencies: dict = None, div = False) -> dict:
+def calc_expected_conv(combs: list[tuple[tuple]], tree: Node, model: DiscreteModel,
+                       ancestor_columns: dict, rates: dict = None,
+                       site_frequencies: dict = None, div = False) -> dict:
     """
     calculates expected convergence and divergence for a given tree and
     model, conditioning on ancestral states in ancestor_columns
@@ -417,9 +417,9 @@ if __name__ == "__main__":
 
     good_combs = get_good_branch_combs(branch_combs, curroot)
 
-    results = main(combs=good_combs, tree=curroot, model=modJTT,
-                   ancestor_columns=anc_cols, rates=rates_dict,
-                   site_frequencies=site_freqs, div=args.divergent)
+    results = calc_expected_conv(combs=good_combs, tree=curroot, model=modJTT,
+                                 ancestor_columns=anc_cols, rates=rates_dict,
+                                 site_frequencies=site_freqs, div=args.divergent)
 
     print("branch_comb\tsites\tconv\tdiv\tlength")
     for comb, res in results.items():
