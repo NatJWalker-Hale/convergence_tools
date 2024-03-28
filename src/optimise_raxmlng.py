@@ -7,6 +7,7 @@ import sys
 import argparse
 import subprocess
 import numpy as np
+import numpy.typing as npt
 
 
 MODELS = ["Blosum62", "cpREV", "Dayhoff", "DCMut", "DEN", "FLU",
@@ -22,8 +23,7 @@ def optimise(tree, aln, model, outgroup=None):
         sys.exit()
     if not set(model.split("+")[1:]).intersection(set(["F", "FO", "G"])):
         # check if valid suffix
-        sys.stderr.write("only empirical frequencies (+F) \
-                         and/or gamma-distributed rates (+G) \
+        sys.stderr.write("only empirical frequencies (+F) and/or gamma-distributed rates (+G) \
                          allowed.\n")
         sys.exit()
     if outgroup is not None:
@@ -64,7 +64,7 @@ def optimise(tree, aln, model, outgroup=None):
     p.wait()
 
 
-def get_optimised_freqs(tree: str, aln: str, model: str) -> np.array:
+def get_optimised_freqs(tree: str, aln: str, model: str) -> npt.NDArray[np.float64]:
     if model.split("+")[0] not in MODELS:
         # check if valid model
         sys.stderr.write("please specify a valid AA model!\n")

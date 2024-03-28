@@ -97,9 +97,9 @@ if __name__ == "__main__":
                         where parent and child are unambiguous, i.e. PP > 0.8 \
                         (default False)",
                         type=bool, default=False)
-    parser.add_argument("-p", "--probs", help="if robust. Tab-separated file \
-                        of site, node, state, and probability, in the style \
-                        of FastML's Ancestral_MaxMarginalProb_Char_Indel.txt")
+    parser.add_argument("-p", "--probs", help="if robust. Tab-separated file of site, node, state,\
+                        and probability, in the style of FastML's \
+                        Ancestral_MaxMarginalProb_Char_Indel.txt")
     args = parser.parse_args()
 
     if args.robust and args.probs is None:

@@ -11,7 +11,7 @@ from collections import Counter
 import numpy as np
 
 
-def check_aligned(seq_dict: dict) -> bool:
+def check_aligned(seq_dict: dict[str: str]) -> bool:
     """
     checks if sequences in a sequence dictionary are the same length
     """
@@ -64,7 +64,7 @@ def parse_phylip_str(phy_str: str):
             seq += line.strip()
     yield header, seq
 
-def get_phylip_str(seq_dict) -> str:
+def get_phylip_str(seq_dict: dict[str: str]) -> str:
     """
     writes a PHYLIP-formatted string from an aligned sequence dictionary {header: sequence}. First
     allows a particular sequence to be placed at the start
@@ -80,7 +80,7 @@ def get_phylip_str(seq_dict) -> str:
     return out
 
 
-def parse_fasta(path):  # courtesy of Jonathan Chang https://gist.github.com/jonchang/6471846
+def parse_fasta(path: str):  # courtesy of Jonathan Chang https://gist.github.com/jonchang/6471846
     """
     given a path tries to parse a fasta file. Returns an iterator which yields a (name, sequence) 
     tuple
@@ -120,7 +120,7 @@ def parse_fasta_str(fa_str: str):
         yield name, sequence
 
 
-def get_fasta_str(seq_dict: dict):
+def get_fasta_str(seq_dict: dict[str: str]) -> str:
     """
     writes sequence dictionary to multiline string
     """
@@ -138,7 +138,7 @@ def write_fasta(seq_dict: dict, out_file: str):
         outf.write(get_fasta_str(seq_dict=seq_dict))
 
 
-def get_columns(seq_dict: dict) -> dict:
+def get_columns(seq_dict: dict) -> dict[int: dict[str: str]]:
     """
     takes a dictionary of an alignment (key: name, value: sequence) and returns a dictionary of 
     columns (key: position, value: dict{name: state})
@@ -175,6 +175,16 @@ def get_site_specific_frequencies(seq_dict: dict, smooth: bool=True) -> dict:
             freqs = np.fromiter((counts[char] for char in aa), dtype=float) / tot
         freq_dict[pos] = freqs
     return freq_dict
+
+
+def write_site_specific_frequencies(site_freqs: dict, outpath: str="site_frequencies.tsv"):
+    """
+    write dictionary of site-specific frequencies to a tab-separated file of pos    comma-sep freqs
+    """
+    with open(outpath, "w", encoding="utf-8") as sff:
+        for pos, freq in site_freqs.items():
+            sff.write(f"{pos}\t")
+            sff.write(",".join([f"{f:.4f}" for f in freq]) + "\n")
 
 
 def calc_gene_frequencies(seq_dict: dict) -> np.array:
