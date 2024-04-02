@@ -15,13 +15,14 @@ import newick as nwk
 from phylo import Node
 from sim_site_specific_freqs import sim_alignment_gene_freqs, sim_alignment_site_freqs
 from sim_site_specific_freqs import sim_sites_indelible
-from calc_expected_conv import get_good_branch_combs
+from calc_expected_conv import get_good_branch_combs, get_node_dict_from_tree
 from count_conv_subs_from_asr import count_conv_subs
 from summarise_asr_over_tree import add_subs
 
 
 def run_sim_gf(tree: Node, alignment: dict, branch_combs: list[tuple[tuple]], model: str="JTT",
-               gamma: tuple[int, float]=None, use_anc: int=1, reps: int=100) -> dict:
+               gamma: tuple[int, float]=None, use_anc: int=1, reps: int=100,
+               write: bool=False) -> dict:
     """
     function to run and parse expect convergence and divergence by simulation, using gene-wide
     frequencies. Frequencies can be specified or if not will be calculated from the input alignment
@@ -44,6 +45,8 @@ def run_sim_gf(tree: Node, alignment: dict, branch_combs: list[tuple[tuple]], mo
     while i < reps:
         sim_aln = sim_alignment_gene_freqs(tree, alignment, model, gamma, use_anc)
         sim_aln = sq.insert_gaps_by_seq(alignment, sim_aln)
+        if write:
+            sq.write_fasta(sim_aln, f"rep_{i}.pep.fa")
         add_subs(ex_br_dict, sim_aln)
 
         for comb in branch_combs:
@@ -91,7 +94,7 @@ def run_sim_gf(tree: Node, alignment: dict, branch_combs: list[tuple[tuple]], mo
 
 
 def run_sim_sf(tree: Node, alignment: dict, branch_combs: list[tuple[tuple]], model: str="JTT",
-               rates: dict=None, use_anc: int=1, reps: int=100) -> dict:
+               rates: dict=None, use_anc: int=1, reps: int=100, write: bool=False) -> dict:
     """
     function to run and parse expect convergence and divergence by simulation, using site-specific
     frequencies. Frequencies will be calculated from the original alignment.
@@ -114,6 +117,8 @@ def run_sim_sf(tree: Node, alignment: dict, branch_combs: list[tuple[tuple]], mo
     while i < reps:
         sim_aln = sim_alignment_site_freqs(tree, alignment, model, use_anc, rates)
         sim_aln = sq.insert_gaps_by_seq(alignment, sim_aln)
+        if write:
+            sq.write_fasta(sim_aln, f"rep_{i}.pep.fa")
         # print(sq.get_fasta_str(sim_aln))
         add_subs(ex_br_dict, sim_aln)
 
@@ -254,12 +259,15 @@ if __name__ == "__main__":
                         space-separated, ncat alpha", type=str, nargs=2)
     parser.add_argument("-i", "--indelible", help="use INDELible for the simulation under \
                         site-specific frequencies", action="store_true")
+    parser.add_argument("-w", "--write", help="write individual replicate FASTAs. Note that \
+                        INDELible", action="store_true")
     args = parser.parse_args()
     if args.site_frequencies_file:
         args.site_frequencies = True
 
     curroot = nwk.parse_from_file(args.tree)
     aln = dict(sq.parse_fasta(args.alignment))
+    nodes = get_node_dict_from_tree(curroot)
 
     if args.rates:
         rates_dict = sq.parse_paml_rates(args.rates)
@@ -270,6 +278,10 @@ if __name__ == "__main__":
     if len(branches) == 1:
         sys.stderr.write("More than one branch required\n")
         sys.exit(1)
+
+    for branch in branches:
+        if nodes[branch[0]] != nodes[branch[1]].parent:
+            sys.stderr.write(f"branch {branch} is multi-branch lineage. Check.\n")
 
     if len(branches) == 2:
         br_combs = [tuple(branches)]
@@ -288,11 +300,11 @@ if __name__ == "__main__":
                                     site_freqs=freqs, reps=args.reps)
         else:
             res = run_sim_sf(curroot, aln, good_combs, model="JTT", rates=rates_dict, use_anc=1,
-                             reps=args.reps)
+                             reps=args.reps, write=args.write)
 
     else:
         res = run_sim_gf(curroot, aln, good_combs, model="JTT", gamma=args.gamma, use_anc=1,
-                         reps=args.reps)
+                         reps=args.reps, write=args.write)
 
     print("branches\tex_conv\tex_div\tobs_conv\tobs_div\tsims_c_lt\tsims_c_gt\tsims_d_lt\t"
           "sims_d_gt\tp_c\tp_d\tr_c\tr_d\treps")

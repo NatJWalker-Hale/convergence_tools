@@ -31,8 +31,6 @@ def count_diffs(seq1: str, seq2: str, gaps=False) -> list:
                 enumerate(zip(seq1, seq2)) if j[0] != j[1]]
     if not gaps:
         diffs = [j for j in raw_diffs if "-" not in j]
-    else:
-        diffs = list(raw_diffs)
     return diffs
 
 

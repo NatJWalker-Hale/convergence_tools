@@ -368,7 +368,11 @@ if __name__ == "__main__":
 
     curroot = parse_from_file(args.tree)
 
-    curroot.number_nodes()
+    if args.label:
+        curroot.number_nodes()
+        print(f"{curroot.to_string(True, True)};")
+        sys.exit()
+    # print(curroot.to_string())
     # make dict of tree nodes indexed by label
     nodes = get_node_dict_from_tree(curroot)
 
