@@ -21,7 +21,7 @@ msd$score <- 1-as.numeric(msd$V2)
 
 # PCOC
 
-pcoc <- read.csv(Sys.glob("PCOC_new1/RUN_*/*_results.tsv"),
+pcoc <- read.csv(Sys.glob("PCOC/RUN_*/*.results.tsv"),
                  sep="\t", header=T)
 # switch NAs for too gappy sites to 0
 
@@ -63,13 +63,13 @@ results <- data.frame(pos=pcoc$Sites,
 
 results <- data.frame(pos=pelican$site,
                       godon=godon$p[match(pelican$site, godon$pos)],
-                      pcoc=pcoc$PCOC[match(pelican$site, pcoc$Sites)],
+                      pcoc=pcoc$PCOC,
                       pelican=pelican$score,
                       diffsel=meandiffsel$max
                       )
 
 results$godon[is.na(results$godon)] <- 0.0
-results$pcoc[is.na(results$pcoc)] <- 0.0
+# results$pcoc[is.na(results$pcoc)] <- 0.0
  
 write.csv(results, "all_output.csv", row.names = FALSE)
 
