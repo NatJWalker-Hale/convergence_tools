@@ -21,7 +21,7 @@ msd$score <- 1-as.numeric(msd$V2)
 
 # PCOC
 
-pcoc <- read.csv(Sys.glob("PCOC/RUN_*/*.results.tsv"),
+pcoc <- read.csv(Sys.glob("PCOC_new1/RUN_*/*_results.tsv"),
                  sep="\t", header=T)
 # switch NAs for too gappy sites to 0
 
@@ -34,6 +34,17 @@ tdg09 <- as.data.frame(matrix(unlist(out$FullResults), ncol=9, byrow=T))
 colnames(tdg09) <- c("pos","ssFparam","ssFlogL","lssFparam","lssFlogL","deltaLogL","df","LRT","FDR")
 tdg09$score <- 1-as.numeric(tdg09$FDR)
 tdg09$score[is.na(tdg09$score)] <- 0.0
+
+# PELICAN
+
+pelican <- read.table("PELICAN/all_sites.tsv", header=T)
+pelican$score <- 1 - as.numeric(pelican$aagtr_pval)
+pelican$score
+
+# Godon
+
+godon <- read.table("~/Dropbox/cary_projects/DODA/20220215_selection/strict/recon_topo/prank/all_foreground/BEB_results.tsv",
+                    header=T)
 
 # topo
 
@@ -50,9 +61,19 @@ results <- data.frame(pos=pcoc$Sites,
                       topo=topo$topological
                       )
 
+results <- data.frame(pos=pelican$site,
+                      godon=godon$p[match(pelican$site, godon$pos)],
+                      pcoc=pcoc$PCOC[match(pelican$site, pcoc$Sites)],
+                      pelican=pelican$score,
+                      diffsel=meandiffsel$max
+                      )
+
+results$godon[is.na(results$godon)] <- 0.0
+results$pcoc[is.na(results$pcoc)] <- 0.0
+ 
 write.csv(results, "all_output.csv", row.names = FALSE)
 
-results$pass <- apply(results[,2:6],1,function(x) {sum(x > 0.95)})
+results$pass <- apply(results[,2:5],1,function(x) {sum(x > 0.95)})
 
 #write.csv(x = results, "br_part_original/prank/all_results.csv", row.names = F)
 #write.csv(x = results, "br_part_1st_origin/prank/all_results.csv", row.names = F)
@@ -97,7 +118,7 @@ for (i in 1:max(results$pos)) {
 # multiple separate bars on one line
 # par(mfrow=c(5,1))
 
-conv_sub_sites <- read.table("~/Dropbox/cary_projects/DODA/figures/convergent_sub_sites_cln.txt", header=T)
+conv_sub_sites <- read.table("~/Dropbox/cary_projects/DODA/figures/thesis_versions/element_files/convergent_sub_sites_cln.txt", header=T)
 
 conv_sub_sites_vec <- conv_sub_sites$pos_cln
 
@@ -126,6 +147,62 @@ points(which(results$diffsel >= 0.95),
 
 points(pos0.95,
        results[which(results$pos %in% pos0.95),]$diffsel,
+       col=points_col_vec,
+       pch=20)
+
+abline(h=0.95,
+       lty=3)
+
+# pelican
+
+plot(results$pelican, type="h", col=col_vec,
+     frame.plot = F, xlim=c(1,274), ylim=c(0,1.0),
+     ylab="", xlab="", xaxt="n")
+
+pos0.95 <- results$pos[which(results$pelican >= 0.95)]
+points_col_vec <- rep("#cccccc", length(pos0.95))
+
+for (i in pos0.95) {
+  if (i %in% conv_sub_sites$pos_cln) {
+    points_col_vec[which(pos0.95 == i)] <- conv_sub_sites$col[which(conv_sub_sites$pos_cln == i)]
+  }
+}
+
+points(which(results$pelican >= 0.95),
+       results$pelican[results$pelican >= 0.95],
+       col="#cccccc",
+       pch=20)
+
+points(pos0.95,
+       results[which(results$pos %in% pos0.95),]$pelican,
+       col=points_col_vec,
+       pch=20)
+
+abline(h=0.95,
+       lty=3)
+
+# godon
+
+plot(results$godon, type="h", col=col_vec,
+     frame.plot = F, xlim=c(1,274), ylim=c(0,1.0),
+     ylab="", xlab="", xaxt="n")
+
+pos0.95 <- results$pos[which(results$godon >= 0.95)]
+points_col_vec <- rep("#cccccc", length(pos0.95))
+
+for (i in pos0.95) {
+  if (i %in% conv_sub_sites$pos_cln) {
+    points_col_vec[which(pos0.95 == i)] <- conv_sub_sites$col[which(conv_sub_sites$pos_cln == i)]
+  }
+}
+
+points(which(results$godon >= 0.95),
+       results$godon[results$godon >= 0.95],
+       col="#cccccc",
+       pch=20)
+
+points(pos0.95,
+       results[which(results$pos %in% pos0.95),]$godon,
        col=points_col_vec,
        pch=20)
 
@@ -164,7 +241,8 @@ abline(h=0.95,
 
 plot(results$pcoc, type="h", col=col_vec,
      frame.plot = F, xlim=c(1,274), ylim=c(0,1.0),
-     ylab="", xlab="", xaxt="n")
+     ylab="", xlab="", xaxt="n", yaxt="n")
+axis(2, c(0, 0.2, 0.4, 0.6, 0.8, 1.0))
 
 pos0.95 <- results$pos[which(results$pcoc >= 0.95)]
 points_col_vec <- rep("#cccccc", length(pos0.95))
