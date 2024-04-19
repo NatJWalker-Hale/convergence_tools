@@ -31,8 +31,6 @@ def count_diffs(seq1: str, seq2: str, gaps=False) -> list:
                 enumerate(zip(seq1, seq2)) if j[0] != j[1]]
     if not gaps:
         diffs = [j for j in raw_diffs if "-" not in j]
-    else:
-        diffs = list(raw_diffs)
     return diffs
 
 
@@ -97,9 +95,9 @@ if __name__ == "__main__":
                         where parent and child are unambiguous, i.e. PP > 0.8 \
                         (default False)",
                         type=bool, default=False)
-    parser.add_argument("-p", "--probs", help="if robust. Tab-separated file \
-                        of site, node, state, and probability, in the style \
-                        of FastML's Ancestral_MaxMarginalProb_Char_Indel.txt")
+    parser.add_argument("-p", "--probs", help="if robust. Tab-separated file of site, node, state,\
+                        and probability, in the style of FastML's \
+                        Ancestral_MaxMarginalProb_Char_Indel.txt")
     args = parser.parse_args()
 
     if args.robust and args.probs is None:

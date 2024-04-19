@@ -11,6 +11,7 @@ import sys
 import argparse
 from itertools import combinations
 import numpy as np
+import numpy.typing as npt
 import sequence as sq
 from newick import parse_from_file
 from phylo import Node, getMRCATraverse
@@ -18,7 +19,7 @@ from discrete_models import DiscreteModel
 from optimise_raxmlng import get_optimised_freqs
 
 
-def get_seq_dict_from_tree(tree: Node, seq_dict: dict) -> dict:
+def get_seq_dict_from_tree(tree: Node, seq_dict: dict) -> dict[str: str]:
     """takes a tree and sequence dictionary and returns a dictionary of
     sequences that are tips in the tree"""
     out = {}
@@ -32,7 +33,7 @@ def get_seq_dict_from_tree(tree: Node, seq_dict: dict) -> dict:
     return out
 
 
-def get_opt_site_specific_frequencies(col_dict: dict, tree: str) -> dict:
+def get_opt_site_specific_frequencies(col_dict: dict, tree: str) -> dict[str: ]:
     """takes a dictionary from get_columns, writes individual column FASTAs,
     optimises ML frequencies with raxml-ng and returns the frequencies as a 
     dictionary"""
@@ -50,7 +51,7 @@ def get_opt_site_specific_frequencies(col_dict: dict, tree: str) -> dict:
     return out
 
 
-def get_node_dict_from_tree(tree: Node) -> dict:
+def get_node_dict_from_tree(tree: Node) -> dict[str: Node]:
     """
     takes a tree with node labels and returns a dictionary of {label: Node}
     """
@@ -82,19 +83,29 @@ def get_all_branches_labelled_tree(tree: Node) -> list[tuple]:
         out.append((par.label, n.label))
     return out
 
+
 # refactored with Claude's assistance
 def get_good_branch_combs(combs: list[tuple[tuple]],
                           tree: Node) -> list[tuple[tuple]]:
-    """takes an input list of tuples of two tuples of length two (e.g.
-    [(("N7", "N8"), ("N41", "N42")), (("N171", "N224"), ("N8", "N9'))]) 
-    and a tree with node labels matching labels in tuples and determines 
-    which combinations to keep"""
+    """
+    takes an input list of tuples of two tuples of length two (e.g. [(("N7", "N8"),
+    ("N41", "N42")), (("N171", "N224"), ("N8", "N9"))]) and a tree with node labels matching 
+    labels in tuples and determines which combinations to keep
+    """
     out = []
     node_dict = get_node_dict_from_tree(tree)
     ancestors = {node: set(node.get_ancestors(True)) for node in
                  node_dict.values()}
     for c in combs:
         par1, ch1, par2, ch2 = (node_dict[x] for x in (x for i in c for x in i))
+
+        if par1 not in ancestors[ch1]:
+            sys.stderr.write(f"branch or lineage {(par1, ch1)} does not exist in tree\n")
+            continue
+
+        if par2 not in ancestors[ch2]:
+            sys.stderr.write(f"branch or lineage {(par2, ch2)} does not exist in tree\n")
+            continue
 
         if par1 == par2:  # sisters
             sys.stderr.write(f"skipping combination {c} as {c[0]} is "
@@ -132,7 +143,7 @@ def get_good_branch_combs(combs: list[tuple[tuple]],
 #     return p
 
 
-def map_state_array(aa_char: str) -> np.array:
+def map_state_array(aa_char: str) -> npt.NDArray[np.float64]:
     """returns a dim20 array of zeros with idx aa = 1"""
     aaidx = {"A": 0, "R": 1, "N": 2, "D": 3, "C": 4, "Q": 5, "E": 6, "G": 7,
          "H": 8, "I": 9, "L": 10, "K": 11, "M": 12, "F": 13, "P": 14, "S": 15,
@@ -157,6 +168,10 @@ def get_path_length_mrca(node1: Node, node2: Node) -> tuple:
     return lengths, mrca
 
 
+def get_path_length_desc_to_par(desc: Node, par: Node):
+    return(sum([a.length for a in desc.get_ancestors(True, until=par)][:-1]))
+
+
 def get_path_length_root(node: Node):
     """returns the sum of branch lengths between the node and the root"""
     return sum(a.length for a in node.get_ancestors(True))
@@ -175,7 +190,7 @@ def compute_transition_probs(model: DiscreteModel, brlens: list[float],
     return p0, p1, p01, p11
 
 
-def compute_transition_probs_site_freqs(frequencies: np.array,
+def compute_transition_probs_site_freqs(frequencies: npt.NDArray[np.float64],
                                         brlens: list[float], rate: float=1.0):
     """
     computes the four transition probability matrices necessary for joint
@@ -212,6 +227,7 @@ def calc_expected_conv(combs: list[tuple[tuple]], tree: Node, model: DiscreteMod
         conv_prob_sum = 0.
         div_prob_sum = 0.
         lengths, mrca = get_path_length_mrca(node_dict[par1], node_dict[par2])
+        # lengths is a list of length 2
         if mrca.label in (par1, par2):
             # if either of the nodes is the MRCA, we calculate probs for
             # this node by conditioning on the state one node back, to
@@ -219,8 +235,9 @@ def calc_expected_conv(combs: list[tuple[tuple]], tree: Node, model: DiscreteMod
             lengths = [x + mrca.length for x in lengths]
             mrca = mrca.parent
         # get lengths between node and MRCA
-        lengths += [node_dict[x].length for x in (ch1, ch2)]
-        # add child lengths to lengths
+        lengths += [get_path_length_desc_to_par(node_dict[ch1], node_dict[par1])]
+        lengths += [get_path_length_desc_to_par(node_dict[ch2], node_dict[par2])]
+        # add child lengths to lengths - lengths is now a list of length 4
         sites = 0
         if rates is None:  # do these once and save time
             p0, p1, p01, p11 = compute_transition_probs(model, lengths)
@@ -303,7 +320,7 @@ def calc_expected_conv(combs: list[tuple[tuple]], tree: Node, model: DiscreteMod
             if div:
                 cond2 = np.logical_and.reduce([ids[:, 0] != ids[:, 1],
                                                ids[:, 2] != ids[:, 3],
-                                               ids[:, 1] != ids[:, 3]])     
+                                               ids[:, 1] != ids[:, 3]])   
                 div_prob_sum += np.sum(joint_probs_l[ids[cond2, 0], ids[cond2, 1]] *
                                        joint_probs_r[ids[cond2, 2], ids[cond2, 3]])
             # this numpy approach provides _dramatic_ speedups
@@ -320,44 +337,42 @@ if __name__ == "__main__":
         sys.argv.append("-h")
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("tree", help="Tree file containing newick-formatted \
-                        tree to run analysis on")
-    parser.add_argument("ancestors", help="FASTA-formatted alignment of MAP \
-                        sequences for nodes, with names matching labels \
-                        produced by --label")
-    parser.add_argument("branches", help="space-separated parent-daughter \
-                        comparisons in format parent,daughter (at least two)",
-                        type=str, nargs="+")
-    parser.add_argument("-a", "--all", help="Calculate expectation for all \
-                        possible acceptable branch pairs, not just those in \
-                        [branches ...]", action="store_true")
+    parser.add_argument("tree", help="Tree file containing newick-formatted tree to run analysis \
+                        on")
+    parser.add_argument("ancestors", help="FASTA-formatted alignment of MAP sequences for nodes, \
+                        with names matching labels produced by --label")
+    parser.add_argument("branches", help="space-separated parent-daughter comparisons in format \
+                        parent,daughter (at least two). Branches can also represent longer \
+                        lineages in the tree, as long as par is an ancestor desc", type=str,
+                        nargs="+")
+    parser.add_argument("-a", "--all", help="Calculate expectation for all possible acceptable \
+                        branch pairs, not just those in [branches ...]", action="store_true")
     group = parser.add_mutually_exclusive_group(required = False)
-    group.add_argument("-f", "--empirical_frequencies", help="Use \
-                        frequencies calculated from extant sequences. \
-                        'ancestors' should contain sequences for both \
-                        nodes and tips", action="store_true")
-    group.add_argument("-sf", "--site_frequencies", help="Use per-site \
-                        frequencies calculated from extant sequences. \
-                        'ancestors' should contain sequences for both \
-                        nodes and tips", action="store_true")
-    parser.add_argument("-sff", "--site_frequencies_file", help="if using \
-                        site frequencies, read from file. Format: tab \
-                        separated, first column position (0-indexed) \
+    group.add_argument("-f", "--empirical_frequencies", help="Use frequencies calculated from \
+                       extant sequences. 'ancestors' should contain sequences for both nodes and \
+                       tips", action="store_true")
+    group.add_argument("-sf", "--site_frequencies", help="Use per-site frequencies calculated \
+                       from extant sequences. 'ancestors' should contain sequences for both \
+                       nodes and tips", action="store_true")
+    parser.add_argument("-sff", "--site_frequencies_file", help="if using site frequencies, read \
+                        from file. Format: tab separated, first column position (0-indexed) \
                         second column comma separated frequencies (20)")
-    parser.add_argument("-r", "--rates", help="File containing estimated \
-                        posterior mean rate for each site from PAML")
-    parser.add_argument("-d", "--divergent", help="Also calculate the \
-                        probability of divergent substitutions",
-                        action="store_true")
-    parser.add_argument("-l", "--label", help="Print labelled tree and \
-                        quit", action="store_true")
+    parser.add_argument("-r", "--rates", help="File containing estimated posterior mean rate for \
+                        each site from PAML")
+    parser.add_argument("-d", "--divergent", help="Also calculate the probability of divergent \
+                        substitutions", action="store_true")
+    parser.add_argument("-l", "--label", help="Print labelled tree and quit", action="store_true")
     args = parser.parse_args()
     if args.site_frequencies_file:
         args.site_frequencies = True
 
     curroot = parse_from_file(args.tree)
 
-    curroot.number_nodes()
+    if args.label:
+        curroot.number_nodes()
+        print(f"{curroot.to_string(True, True)};")
+        sys.exit()
+    # print(curroot.to_string())
     # make dict of tree nodes indexed by label
     nodes = get_node_dict_from_tree(curroot)
 
@@ -395,13 +410,10 @@ if __name__ == "__main__":
         else:
             extants = get_seq_dict_from_tree(curroot, ancs)
             site_freqs = sq.get_site_specific_frequencies(extants)
-            with open("site_frequencies.tsv", "w", encoding="utf-8") as sff:
-                for pos, freq in site_freqs.items():
-                    sff.write(f"{pos}\t")
-                    sff.write(",".join([f"{f:.4f}" for f in freq]) + "\n")
+            sq.write_site_specific_frequencies(site_freqs)
     else:
         site_freqs = None
-
+    
     if args.all:
         branches = get_all_branches_labelled_tree(curroot)
     else:
@@ -409,6 +421,10 @@ if __name__ == "__main__":
     if len(branches) == 1:
         sys.stderr.write("More than one branch required\n")
         sys.exit(1)
+
+    for branch in branches:
+        if nodes[branch[0]] != nodes[branch[1]].parent:
+            sys.stderr.write(f"branch {branch} is multi-branch lineage. Check.\n")
 
     if len(branches) == 2:
         branch_combs = [tuple(branches)]

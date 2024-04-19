@@ -7,6 +7,8 @@ import sys
 import argparse
 from itertools import combinations
 from calc_expected_conv import get_good_branch_combs, get_all_branches_labelled_tree
+from summarise_asr_over_tree import parse_probs, add_subs, add_subs_robust
+import sequence as sq
 import newick as nwk
 
 
@@ -78,7 +80,7 @@ def count_conv_subs(comb: tuple[tuple], subs_dict: dict) -> dict:
 
     return out_dict
 
-    
+
 if __name__ == "__main__":
     if len(sys.argv[1:]) == 0:
         sys.argv.append("-h")
@@ -94,11 +96,14 @@ if __name__ == "__main__":
                         not just those in [branches ...]", action="store_true")
     parser.add_argument("-atl", "--atleast", help="sub must occur in at least n branches (default \
                         2)", type=int, default=2)
-    parser.add_argument("-nc", "--nonconv", help="also write non-site-overlapping changes on each \
-                        branch", action="store_true")
+    parser.add_argument("-r", "--robust", help="count only substitutions where parent and child \
+                        are unambiguous, i.e. PP > 0.8 (default False)", action="store_true")
+    parser.add_argument("-p", "--probs", help="if robust. Tab-separated file of site, node, state,\
+                        and probability, in the style of FastML's \
+                        Ancestral_MaxMarginalProb_Char_Indel.txt")
     args = parser.parse_args()
 
-    subs = read_subs(args.subsfile)
+    alignment = dict(sq.parse_fasta(args.alignment))
 
     curroot = nwk.parse_from_file(args.tree)
     curroot.number_nodes()
@@ -110,12 +115,10 @@ if __name__ == "__main__":
     if args.all:
         branches_filt = []
         branches = get_all_branches_labelled_tree(curroot)
-        for branch in branches:
-            if branch in subs:
-                branches_filt.append(branch)
-        branches = branches_filt
     else:
         branches = [(x.split(",")[0], x.split(",")[1]) for x in args.branches]
+
+    subs = {br: [] for br in branches}
 
     branch_comb_dict = {}  # key is order, value is list of tuples
     o = 2
@@ -125,12 +128,25 @@ if __name__ == "__main__":
         branch_comb_dict[o] = good_combs
         o += 1
 
+    if args.robust:
+        if args.probs is None:
+            sys.stderr.write("must specify a state probability file for robust mode\n")
+            sys.exit()
+        probs = parse_probs(args.probs)
+        add_subs_robust(subs, alignment, probs)
+    else:
+        add_subs(subs, alignment)
+
     # print(branch_comb_dict)
 
     results = {}
     for order, combos in branch_comb_dict.items():
         for branch_comb in combos:  # specific branch combs at a given level
-            results[branch_comb] = count_conv_subs(branch_comb, subs)
+            try:
+                results[branch_comb] = count_conv_subs(branch_comb, subs)
+            except ValueError:
+                sys.stderr.write(f"skipping combination {branch_comb} as no substitutions\n")
+                continue
 
     print("order\tbranches\tconv\tdiv\tlength")
     for k, v in results.items():

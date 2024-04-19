@@ -296,7 +296,7 @@ class Node:
                 if self.parent is None:
                     length_str = ""
                 else:
-                    length_str = f":{self.length:.6f}"
+                    length_str = f":{self.length:.6f}".rstrip("0")
             else:
                 length_str = ""
         else:
