@@ -194,7 +194,9 @@ if __name__ == "__main__":
                "10",
                "--max_gap_allowed_in_conv_leaves",
                "10",
-               "--no_cleanup"
+               "--no_cleanup",
+               "-f",
+               "0"
                ]
         # tried to run this with shell=False but too hard to get docker to work
         # userID, _ = subprocess.Popen(["id", "-u", os.environ["USER"]],

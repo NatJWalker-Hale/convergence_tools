@@ -100,7 +100,6 @@ if __name__ == "__main__":
         node_dict[n.label] = n
 
     branches = [(x.split(",")[0], x.split(",")[1]) for x in args.branches]
-    print(branches)
     if len(branches) == 1:
         args.isin = args.branches
 
