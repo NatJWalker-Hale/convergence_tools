@@ -53,13 +53,13 @@ topo <- read.csv("topo/topo_output.txt", header=T)
 
 # all
 
-results <- data.frame(pos=pcoc$Sites,
-                      diffsel=meandiffsel$max,
-                      msd=msd$score,
-                      pcoc=pcoc$PCOC,
-                      tdg09=tdg09$score,
-                      topo=topo$topological
-                      )
+# results <- data.frame(pos=pcoc$Sites,
+#                       diffsel=meandiffsel$max,
+#                       msd=msd$score,
+#                       pcoc=pcoc$PCOC,
+#                       tdg09=tdg09$score,
+#                       topo=topo$topological
+#                       )
 
 results <- data.frame(pos=pelican$site,
                       godon=godon$p[match(pelican$site, godon$pos)],
@@ -71,9 +71,22 @@ results <- data.frame(pos=pelican$site,
 results$godon[is.na(results$godon)] <- 0.0
 # results$pcoc[is.na(results$pcoc)] <- 0.0
  
-write.csv(results, "all_output.csv", row.names = FALSE)
+write.csv(results, "~/Dropbox/cary_projects/DODA/manuscript/figures/element_files/20241121_all_adaptive_output.csv", row.names = FALSE)
 
 results$pass <- apply(results[,2:5],1,function(x) {sum(x > 0.95)})
+
+aln2cln_corres <- read.table(
+  "~/Dropbox/cary_projects/DODA/manuscript/figures/element_files/20241111_aln2cln_correspondence.tsv",
+  header=T)
+
+BvDODAa1_corres <- read.table(
+  "~/Dropbox/cary_projects/DODA/manuscript/figures/element_files/20240409_BvDODAa1_pos_corres.tsv",
+  header=T)
+
+results$aln_pos <- aln2cln_corres$original
+results$BvDODAa1_pos <-  BvDODAa1_corres$ref_pos[match(results$aln_pos, BvDODAa1_corres$aln_pos)]
+
+results[which(results$pass > 2),]
 
 #write.csv(x = results, "br_part_original/prank/all_results.csv", row.names = F)
 #write.csv(x = results, "br_part_1st_origin/prank/all_results.csv", row.names = F)
